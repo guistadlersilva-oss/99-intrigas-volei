@@ -214,21 +214,185 @@ async function saveGamePlayer(gameId,playerId,present,mode){
 }
 async function drawTeams(){
   if(!currentGame)return;
-  const gp=(await SB.from('game_players').select('player_id').eq('game_id',currentGame.id).eq('present',true)).data||[];
-  const ps=gp.map(x=>players.find(p=>p.id===x.player_id)).filter(Boolean).sort((a,b)=>b.skill_score-a.skill_score);
-  if(ps.length<currentGame.teams_count){toast('Jogadores insuficientes para a quantidade de times.');return;}
-  await SB.from('team_members').delete().in('team_id',(await SB.from('teams').select('id').eq('game_id',currentGame.id)).data?.map(x=>x.id)||['00000000-0000-0000-0000-000000000000']);
-  await SB.from('teams').delete().eq('game_id',currentGame.id);
-  const teams=Array.from({length:currentGame.teams_count},()=>[]);
-  ps.forEach((p,i)=>{
-    const order=[...Array(teams.length).keys()].sort((a,b)=>sum(teams[a])-sum(teams[b]) || a-b);
-    teams[order[0]].push(p);
-  });
-  for(let i=0;i<teams.length;i++){
-    const t=(await SB.from('teams').insert({game_id:currentGame.id,team_no:i+1,total_skill:sum(teams[i])}).select().single()).data;
-    if(t) await SB.from('team_members').insert(teams[i].map(p=>({team_id:t.id,player_id:p.id})));
+
+  const gp=(await SB.from('game_players')
+    .select('player_id')
+    .eq('game_id',currentGame.id)
+    .eq('present',true)).data||[];
+
+  const ps=gp
+    .map(x=>players.find(p=>p.id===x.player_id))
+    .filter(Boolean)
+    .sort((a,b)=>b.skill_score-a.skill_score);
+
+  if(!ps.length){
+    toast('Nenhum jogador confirmado para este jogo.');
+    return;
   }
-  toast('Times sorteados e equilibrados.'); await renderGames();
+
+  // Quantidade de times definida no jogo.
+  // Não exige quantidade mínima de jogadores por time.
+  const teamCount=Math.min(
+    Math.max(1,currentGame.teams_count||2),
+    ps.length
+  );
+
+  // Remove os times anteriores.
+  const oldTeams=(await SB.from('teams')
+    .select('id')
+    .eq('game_id',currentGame.id)).data||[];
+
+  if(oldTeams.length){
+    await SB.from('team_members')
+      .delete()
+      .in('team_id',oldTeams.map(x=>x.id));
+
+    await SB.from('teams')
+      .delete()
+      .eq('game_id',currentGame.id);
+  }
+
+  /*
+   * Distribuição equilibrada:
+   *
+   * Os jogadores são ordenados do mais forte
+   * para o mais fraco e colocados sempre no
+   * time com menor pontuação.
+   *
+   * Isso permite, por exemplo:
+   *
+   * 5 jogadores / 2 times = 2 + 3
+   * 6 jogadores / 2 times = 3 + 3
+   * 7 jogadores / 2 times = 3 + 4
+   * 8 jogadores / 2 times = 4 + 4
+   * 9 jogadores / 2 times = 4 + 5
+   */
+  const teams=Array.from(
+    {length:teamCount},
+    ()=>[]
+  );
+
+  ps.forEach(player=>{
+    const order=[...Array(teamCount).keys()]
+      .sort((a,b)=>{
+        const skillDiff=sum(teams[a])-sum(teams[b]);
+
+        if(skillDiff!==0) return skillDiff;
+
+        // Quando a pontuação empata, prioriza
+        // o time com menos jogadores.
+        const sizeDiff=teams[a].length-teams[b].length;
+
+        if(sizeDiff!==0) return sizeDiff;
+
+        return a-b;
+      });
+
+    teams[order[0]].push(player);
+  });
+
+  // Cria os times no Supabase.
+  for(let i=0;i<teams.length;i++){
+    const teamPlayers=teams[i];
+
+    const result=await SB.from('teams')
+      .insert({
+        game_id:currentGame.id,
+        team_no:i+1,
+        total_skill:sum(teamPlayers)
+      })
+      .select()
+      .single();
+
+    if(result.error){
+      toast(result.error.message);
+      return;
+    }
+
+    const team=result.data;
+
+    if(teamPlayers.length){
+      const members=teamPlayers.map(player=>({
+        team_id:team.id,
+        player_id:player.id
+      }));
+
+      const mr=await SB.from('team_members').insert(members);
+
+      if(mr.error){
+        toast(mr.error.message);
+        return;
+      }
+    }
+  }
+
+  toast('Times sorteados e equilibrados!');
+  await renderGames();
+}
+
+
+const sum=a=>a.reduce(
+  (s,p)=>s+(Number(p?.skill_score)||0),
+  0
+);
+
+
+async function renderTeamsAdmin(){
+  if(!currentGame)return;
+
+  const ts=(await SB.from('teams')
+    .select('id,team_no,total_skill')
+    .eq('game_id',currentGame.id)
+    .order('team_no')).data||[];
+
+  if(!ts.length){
+    $('teamsAdmin').innerHTML=
+      '<div class="notice">Ainda não há times sorteados.</div>';
+    return;
+  }
+
+  const members=(await SB.from('team_members')
+    .select('team_id,player_id')
+    .in('team_id',ts.map(t=>t.id))).data||[];
+
+  $('teamsAdmin').innerHTML=ts.map(t=>{
+    const teamMembers=members
+      .filter(m=>m.team_id===t.id)
+      .map(m=>players.find(x=>x.id===m.player_id))
+      .filter(Boolean);
+
+    return `
+      <div class="team">
+        <h3>
+          Time ${t.team_no}
+          <small>
+            ${teamMembers.length} jogador${teamMembers.length===1?'':'es'}
+            · ${sum(teamMembers)} pontos
+          </small>
+        </h3>
+
+        ${
+          teamMembers.length
+          ? teamMembers.map(p=>`
+              <div class="person">
+                <span>
+                  ${esc(p.name)}
+                  <small>${SKILL_LABEL[p.skill_level]||''}</small>
+                </span>
+
+                <button
+                  onclick="movePlayerFromTeam('${p.id}','${t.id}')"
+                  title="Mover jogador"
+                >
+                  ↔️ Mover
+                </button>
+              </div>
+            `).join('')
+          : '<div class="muted">Nenhum jogador neste time.</div>'
+        }
+      </div>
+    `;
+  }).join('');
 }
 const sum=a=>a.reduce((s,p)=>s+p.skill_score,0);
 async function renderTeamsAdmin(){
@@ -237,6 +401,84 @@ async function renderTeamsAdmin(){
   if(!ts.length){$('teamsAdmin').innerHTML='<div class="notice">Ainda não há times sorteados.</div>';return;}
   const members=(await SB.from('team_members').select('team_id,player_id').in('team_id',ts.map(t=>t.id))).data||[];
   $('teamsAdmin').innerHTML=ts.map(t=>`<div class="team"><h3>Time ${t.team_no} <small>${t.total_skill} pontos</small></h3>${members.filter(m=>m.team_id===t.id).map(m=>{const p=players.find(x=>x.id===m.player_id);return `<div class="person">${esc(p?.name||'')} <span>${SKILL_LABEL[p?.skill_level]||''}</span></div>`}).join('')}</div>`).join('');
+}
+async function movePlayerFromTeam(playerId,currentTeamId){
+  const teams=(await SB.from('teams')
+    .select('id,team_no')
+    .eq('game_id',currentGame.id)
+    .order('team_no')).data||[];
+
+  const available=teams.filter(t=>t.id!==currentTeamId);
+
+  if(!available.length){
+    toast('Não existem outros times para mover este jogador.');
+    return;
+  }
+
+  const player=players.find(p=>p.id===playerId);
+
+  if(!player)return;
+
+  const options=available
+    .map(t=>`${t.team_no} - Time ${t.team_no}`)
+    .join('\n');
+
+  const answer=prompt(
+    `Mover ${player.name} para qual time?\n\n${options}\n\nDigite o número do time:`
+  );
+
+  if(answer===null)return;
+
+  const teamNo=Number(answer);
+
+  if(!Number.isInteger(teamNo)){
+    toast('Informe um número de time válido.');
+    return;
+  }
+
+  const target=available.find(t=>t.team_no===teamNo);
+
+  if(!target){
+    toast('Time inválido.');
+    return;
+  }
+
+  const r=await SB.from('team_members')
+    .update({team_id:target.id})
+    .eq('team_id',currentTeamId)
+    .eq('player_id',playerId);
+
+  if(r.error){
+    toast(r.error.message);
+    return;
+  }
+
+  await recalculateTeamScores();
+  toast(`${player.name} foi movido para o Time ${teamNo}.`);
+  await renderGames();
+}
+
+
+async function recalculateTeamScores(){
+  const teams=(await SB.from('teams')
+    .select('id')
+    .eq('game_id',currentGame.id)).data||[];
+
+  for(const team of teams){
+    const members=(await SB.from('team_members')
+      .select('player_id')
+      .eq('team_id',team.id)).data||[];
+
+    const score=sum(
+      members
+        .map(m=>players.find(p=>p.id===m.player_id))
+        .filter(Boolean)
+    );
+
+    await SB.from('teams')
+      .update({total_skill:score})
+      .eq('id',team.id);
+  }
 }
 async function sendTeamsWhatsApp(){
   if(!currentGame)return;
