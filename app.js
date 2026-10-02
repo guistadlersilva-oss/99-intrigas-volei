@@ -34,7 +34,7 @@ let allGames = [];
 let activeMode = 'landing';
 let editingGameId = null;
 
-
+const PUBLIC_APP_URL = 'https://99-intrigas-volei.vercel.app';
 /* =========================================================
    UTILITÁRIOS
 ========================================================= */
@@ -229,7 +229,7 @@ function exitPlayer() {
 
 
 function playerUrl(token) {
-  return `${location.origin}${location.pathname}?jogador=${encodeURIComponent(token)}`;
+  return `${PUBLIC_APP_URL}/?jogador=${encodeURIComponent(token)}`;
 }
 
 
@@ -238,7 +238,7 @@ function registerUrl() {
     window.__INVITE_TOKEN ||
     '';
 
-  return `${location.origin}${location.pathname}?cadastro=${encodeURIComponent(token)}`;
+  return `${PUBLIC_APP_URL}/?cadastro=${encodeURIComponent(token)}`;
 }
 
 
@@ -561,14 +561,49 @@ async function loadAdmin() {
       .eq('id', true)
       .maybeSingle();
 
-  window.__APP_STATE =
-    state.data || {};
+window.__APP_STATE =
+  state.data || {};
 
-  window.__INVITE_TOKEN =
-    state.data?.invite_token ||
-    '';
+window.__INVITE_TOKEN =
+  state.data?.invite_token ||
+  '';
 
-  if ($('adminName')) {
+/*
+  Garante que sempre exista um token
+  válido para o link de cadastro.
+*/
+if (!window.__INVITE_TOKEN) {
+
+  const newToken =
+    crypto.randomUUID()
+      .replace(/-/g, '');
+
+  const inviteUpdate =
+    await SB
+      .from('app_state')
+      .update({
+        invite_token:
+          newToken,
+
+        updated_at:
+          new Date().toISOString()
+      })
+      .eq(
+        'id',
+        true
+      );
+
+  if (!inviteUpdate.error) {
+
+    window.__INVITE_TOKEN =
+      newToken;
+
+    window.__APP_STATE.invite_token =
+      newToken;
+  }
+}
+
+if ($('adminName')) {
     $('adminName').textContent =
       session?.user?.email ||
       'Administrador';
