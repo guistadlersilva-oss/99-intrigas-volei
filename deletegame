@@ -4077,20 +4077,29 @@ async function removeUnitCash(
   gameId,
   playerId
 ) {
-  await SB
-    .from(
-      'cash_entries'
-    )
-    .delete()
-    .eq(
-      'description',
-      unitCashDescription(
-        gameId,
-        playerId
-      )
+  const description =
+    unitCashDescription(
+      gameId,
+      playerId
     );
-}
 
+  const result =
+    await SB
+      .from('cash_entries')
+      .delete()
+      .eq(
+        'description',
+        description
+      );
+
+  if (result.error) {
+    toast(
+      result.error.message
+    );
+
+    return;
+  }
+}
 
 /* =========================================================
    HISTÓRICO DE PAGAMENTOS
