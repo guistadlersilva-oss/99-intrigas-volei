@@ -6171,12 +6171,12 @@ async function registerPlayer(e) {
   const invite =
     $('registerToken')
       ?.value
-      .trim();
+      .trim() || '';
 
   const name =
     $('regName')
       ?.value
-      .trim();
+      .trim() || '';
 
   const skill =
     normalizeSkill(
@@ -6200,24 +6200,54 @@ async function registerPlayer(e) {
     return;
   }
 
+  /*
+    Valida o token do convite.
+    O id da tabela app_state é TEXTO.
+  */
   const state =
     await SB
       .from('app_state')
-      .select(
-        'invite_token'
-      )
+      .select('invite_token')
       .eq(
         'id',
-        true
+        'true'
       )
       .maybeSingle();
 
+  console.log(
+    'Validação do convite:',
+    state
+  );
+
+  if (state.error) {
+    console.error(
+      'Erro ao consultar convite:',
+      state.error
+    );
+
+    toast(
+      'Não foi possível validar o link de cadastro.'
+    );
+
+    return;
+  }
+
   if (
-    state.error ||
     !state.data ||
     state.data.invite_token !==
       invite
   ) {
+
+    console.log(
+      'Token recebido:',
+      invite
+    );
+
+    console.log(
+      'Token salvo:',
+      state.data?.invite_token
+    );
+
     toast(
       'Este link de cadastro não é mais válido.'
     );
@@ -6225,6 +6255,9 @@ async function registerPlayer(e) {
     return;
   }
 
+  /*
+    Cria o acesso individual do jogador.
+  */
   const token =
     crypto.randomUUID()
       .replace(
@@ -6254,6 +6287,12 @@ async function registerPlayer(e) {
       .single();
 
   if (r.error) {
+
+    console.error(
+      'Erro ao cadastrar jogador:',
+      r.error
+    );
+
     toast(
       r.error.message
     );
@@ -6261,28 +6300,31 @@ async function registerPlayer(e) {
     return;
   }
 
-  playerToken =
-    r.data.token;
+  playerData =
+    r.data;
 
-  if ($('registerResult')) {
-    $('registerResult')
-      .classList.remove(
-        'hidden'
-      );
-  }
+  playerToken =
+    token;
+
+  const link =
+    playerUrl(
+      token
+    );
 
   if ($('myAccessLink')) {
     $('myAccessLink').value =
-      playerUrl(
-        playerToken
-      );
+      link;
   }
+
+  $('registerResult')
+    ?.classList.remove(
+      'hidden'
+    );
 
   toast(
     'Cadastro realizado com sucesso!'
   );
 }
-
 
 async function copyMyAccess() {
   const value =
