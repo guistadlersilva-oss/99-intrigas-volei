@@ -1,4 +1,3 @@
-```
 <!doctype html>
 <html lang="pt-BR">
 <head>
@@ -494,7 +493,7 @@ th,td{
       🔐 <b>Administrador:</b> entre com seu login.
     </div>
 
-    <button class="primary" onclick="setMode('adminLogin')">
+    <button class="primary" onclick="goAdmin()">
       Entrar como administrador
     </button>
 
@@ -932,7 +931,6 @@ th,td{
               <th>Nome</th>
               <th>Habilidade</th>
               <th>Pontos</th>
-              <th>WhatsApp</th>
               <th>Status</th>
               <th>Ações</th>
             </tr>
@@ -1260,7 +1258,26 @@ th,td{
     
 
     <!-- ===================================================== -->
-    </section>
+    
+<!-- INDIVIDUAIS -->
+<div class="card" style="margin-top:14px">
+<div class="sectionHeader">
+<h2>🎯 Pagamentos individuais</h2>
+<button onclick="addUnitCharge()">+ Cobrança individual</button>
+</div>
+<p class="muted small">Ao marcar como pago, o valor entra automaticamente no caixa. Mensalidades não entram no caixa.</p>
+<div class="field">
+<label>Jogo</label>
+<select id="payGameSelect" onchange="changePayGame(this.value)"></select>
+</div>
+<div class="tableWrap">
+<table>
+<thead><tr><th>Jogador</th><th>Valor</th><th>Status</th><th>Ações</th></tr></thead>
+<tbody id="unitTable"></tbody>
+</table>
+</div>
+</div>
+</section>
     <!-- CAIXA -->
     <!-- ===================================================== -->
     <section id="a_cash" class="page">
@@ -1350,9 +1367,7 @@ th,td{
         </label>
 
         <select id="cashCategory">
-          <option value="Mensalidade">
-            Mensalidade
-          </option>
+          <option value="Individual">Individual</option>
 
           <option value="Churrasco">
             Churrasco
@@ -1747,6 +1762,10 @@ th,td{
 
           </div>
           <div class="field">
+<label>Valor individual (por jogo)</label>
+<input id="unitFee" type="number" step="0.01" min="0">
+</div>
+<div class="field">
 
             <label>
               Instagram
