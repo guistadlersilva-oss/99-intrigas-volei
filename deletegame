@@ -1561,10 +1561,6 @@ async function deleteGame(id) {
     );
 
   if (!game) {
-    toast(
-      'Jogo não encontrado.'
-    );
-
     return;
   }
 
@@ -1572,271 +1568,99 @@ async function deleteGame(id) {
     !confirm(
       `Excluir o jogo de ${dateBR(
         game.game_date
-      )}?\n\n` +
-      `Os pagamentos individuais serão preservados no histórico.\n\n` +
-      `Esta ação não poderá ser desfeita.`
+      )}?\n\nOs pagamentos individuais serão preservados no histórico.`
     )
   ) {
     return;
   }
 
-  try {
-
-    /* =====================================================
-       1. BUSCAR PAGAMENTOS INDIVIDUAIS
-    ===================================================== */
-
-    const unitsResult =
+  const units =
+    (
       await SB
-        .from('unit_payments')
+        .from(
+          'unit_payments'
+        )
         .select('*')
         .eq(
           'game_id',
           id
-        );
+        )
+    ).data || [];
 
-    if (unitsResult.error) {
-      throw unitsResult.error;
-    }
-
-    const units =
-      unitsResult.data || [];
-
-
-    /* =====================================================
-       2. PRESERVAR PAGAMENTOS NO HISTÓRICO
-    ===================================================== */
-
-    for (
-      const payment of units
-    ) {
-
-      const player =
-        players.find(
-          p =>
-            p.id ===
-            payment.player_id
-        );
-
-      const historyResult =
-        await SB
-          .from('payment_history')
-          .insert({
-            payment_date:
-              game.game_date ||
-              todayKey(),
-
-            /*
-             * O histórico fica independente
-             * do jogador e do jogo.
-             */
-            player_id:
-              null,
-
-            player_name:
-              player?.name ||
-              'Jogador removido',
-
-            payment_type:
-              'individual',
-
-            /*
-             * Não mantemos game_id porque
-             * o jogo será excluído.
-             */
-            game_id:
-              null,
-
-            amount:
-              payment.amount,
-
-            notes:
-              `Pagamento preservado antes da exclusão do jogo de ${dateBR(
-                game.game_date
-              )}`
-          });
-
-      if (
-        historyResult.error
-      ) {
-        throw historyResult.error;
-      }
-    }
-
-
-    /* =====================================================
-       3. REMOVER MEMBROS DOS TIMES
-    ===================================================== */
-
-    const teamsResult =
-      await SB
-        .from('teams')
-        .select('id')
-        .eq(
-          'game_id',
-          id
-        );
-
-    if (teamsResult.error) {
-      throw teamsResult.error;
-    }
-
-    const teams =
-      teamsResult.data || [];
-
-    const teamIds =
-      teams.map(
-        t =>
-          t.id
+  for (
+    const payment of units
+  ) {
+    const player =
+      players.find(
+        p =>
+          p.id ===
+          payment.player_id
       );
 
+    await SB
+      .from(
+        'payment_history'
+      )
+      .insert({
+        payment_date:
+          game.game_date,
 
-    if (teamIds.length) {
+        player_id:
+          payment.player_id,
 
-      const teamMembersResult =
-        await SB
-          .from('team_members')
-          .delete()
-          .in(
-            'team_id',
-            teamIds
-          );
+        player_name:
+          player?.name ||
+          'Jogador removido',
 
-      if (
-        teamMembersResult.error
-      ) {
-        throw teamMembersResult.error;
-      }
-    }
+        payment_type:
+          'individual',
 
+        game_id:
+          id,
 
-    /* =====================================================
-       4. REMOVER TIMES
-    ===================================================== */
+        amount:
+          payment.amount,
 
-    const teamsDeleteResult =
-      await SB
-        .from('teams')
-        .delete()
-        .eq(
-          'game_id',
-          id
-        );
-
-    if (
-      teamsDeleteResult.error
-    ) {
-      throw teamsDeleteResult.error;
-    }
-
-
-    /* =====================================================
-       5. REMOVER PAGAMENTOS INDIVIDUAIS
-    ===================================================== */
-
-    const unitDeleteResult =
-      await SB
-        .from('unit_payments')
-        .delete()
-        .eq(
-          'game_id',
-          id
-        );
-
-    if (
-      unitDeleteResult.error
-    ) {
-      throw unitDeleteResult.error;
-    }
-
-
-    /* =====================================================
-       6. REMOVER JOGADORES DO JOGO
-    ===================================================== */
-
-    const gamePlayersResult =
-      await SB
-        .from('game_players')
-        .delete()
-        .eq(
-          'game_id',
-          id
-        );
-
-    if (
-      gamePlayersResult.error
-    ) {
-      throw gamePlayersResult.error;
-    }
-
-
-    /* =====================================================
-       7. REMOVER O JOGO
-    ===================================================== */
-
-    const gameDeleteResult =
-      await SB
-        .from('games')
-        .delete()
-        .eq(
-          'id',
-          id
-        );
-
-    if (
-      gameDeleteResult.error
-    ) {
-      throw gameDeleteResult.error;
-    }
-
-
-    /* =====================================================
-       8. ATUALIZAR JOGO ATUAL
-    ===================================================== */
-
-    if (
-      currentGame?.id === id
-    ) {
-      currentGame =
-        allGames.find(
-          g =>
-            g.id !== id &&
-            g.game_date >=
-              todayKey()
-        ) ||
-        null;
-
-      editingGameId =
-        currentGame?.id ||
-        null;
-    }
-
-
-    /* =====================================================
-       9. RECARREGAR DADOS
-    ===================================================== */
-
-    await loadAdmin();
-
-    renderGames();
-
-
-    toast(
-      'Jogo excluído. Pagamentos individuais preservados no histórico.'
-    );
-
-  } catch (error) {
-
-    console.error(
-      'Erro ao excluir jogo:',
-      error
-    );
-
-    toast(
-      error?.message ||
-      'Não foi possível excluir o jogo.'
-    );
+        notes:
+          'Preservado antes da exclusão do jogo'
+      });
   }
+
+  const r =
+    await SB
+      .from('games')
+      .delete()
+      .eq(
+        'id',
+        id
+      );
+
+  if (r.error) {
+    toast(
+      r.error.message
+    );
+
+    return;
+  }
+
+  if (
+    currentGame?.id ===
+    id
+  ) {
+    currentGame =
+      null;
+
+    editingGameId =
+      null;
+  }
+
+  await loadAdmin();
+
+  toast(
+    'Jogo excluído.'
+  );
+
+  renderGames();
 }
 
 
@@ -3767,217 +3591,79 @@ async function toggleUnit(
   paid
 ) {
   if (!currentGame) {
+    return;
+  }
+
+  const newPaid =
+    !paid;
+
+  const r =
+    await SB.rpc(
+      'set_unit_paid',
+      {
+        p_game:
+          currentGame.id,
+
+        p_player:
+          playerId,
+
+        p_paid:
+          newPaid
+      }
+    );
+
+  if (r.error) {
     toast(
-      'Nenhum jogo selecionado.'
+      r.error.message
     );
 
     return;
   }
 
-  const gameId =
-    currentGame.id;
-
-  try {
-    /* =====================================================
-       1. LOCALIZAR O PAGAMENTO INDIVIDUAL
-    ===================================================== */
-
-    const paymentResult =
+  const payment =
+    (
       await SB
-        .from('unit_payments')
-        .select('*')
+        .from(
+          'unit_payments'
+        )
+        .select(
+          'amount'
+        )
         .eq(
           'game_id',
-          gameId
+          currentGame.id
         )
         .eq(
           'player_id',
           playerId
         )
-        .maybeSingle();
+        .maybeSingle()
+    ).data;
 
-    if (
-      paymentResult.error
-    ) {
-      throw paymentResult.error;
-    }
-
-    const payment =
-      paymentResult.data;
-
-
-    /* =====================================================
-       2. SE NÃO EXISTIR, CRIAR O PAGAMENTO
-    ===================================================== */
-
-    if (!payment) {
-      const defaultAmount =
-        Number(
-          settings?.unit_fee || 10
-        );
-
-      if (
-        !Number.isFinite(
-          defaultAmount
-        ) ||
-        defaultAmount <= 0
-      ) {
-        toast(
-          'Configure um valor válido para o pagamento individual.'
-        );
-
-        return;
-      }
-
-      const insertResult =
-        await SB
-          .from('unit_payments')
-          .insert({
-            game_id:
-              gameId,
-
-            player_id:
-              playerId,
-
-            amount:
-              defaultAmount
-          })
-          .select()
-          .single();
-
-      if (
-        insertResult.error
-      ) {
-        throw insertResult.error;
-      }
-
-      if (paid) {
-        await SB
-          .from('game_players')
-          .upsert(
-            {
-              game_id:
-                gameId,
-
-              player_id:
-                playerId,
-
-              present:
-                true,
-
-              payment_mode:
-                'individual'
-            },
-            {
-              onConflict:
-                'game_id,player_id'
-            }
-          );
-
-        await syncUnitCash(
-          gameId,
-          playerId,
-          defaultAmount
-        );
-      }
-
-      await renderPayments();
-
-      return;
-    }
-
-
-    /* =====================================================
-       3. MARCAR COMO PAGO
-    ===================================================== */
-
-    if (paid) {
-
-      const amount =
-        Number(
-          payment.amount
-        );
-
-      if (
-        !Number.isFinite(
-          amount
-        ) ||
-        amount <= 0
-      ) {
-        toast(
-          'O valor do pagamento individual precisa ser maior que zero.'
-        );
-
-        return;
-      }
-
-      const gamePlayerResult =
-        await SB
-          .from('game_players')
-          .upsert(
-            {
-              game_id:
-                gameId,
-
-              player_id:
-                playerId,
-
-              present:
-                true,
-
-              payment_mode:
-                'individual'
-            },
-            {
-              onConflict:
-                'game_id,player_id'
-            }
-          );
-
-      if (
-        gamePlayerResult.error
-      ) {
-        throw gamePlayerResult.error;
-      }
-
-      await syncUnitCash(
-        gameId,
-        playerId,
-        amount
-      );
-
-    } else {
-
-      /* ===================================================
-         4. DESMARCAR COMO PAGO
-      =================================================== */
-
-      await removeUnitCash(
-        gameId,
-        playerId
-      );
-    }
-
-
-    /* =====================================================
-       5. ATUALIZAR INTERFACE
-    ===================================================== */
-
-    await renderPayments();
-
-  } catch (error) {
-
-    console.error(
-      'Erro ao atualizar pagamento individual:',
-      error
+  if (newPaid) {
+    await syncUnitCash(
+      currentGame.id,
+      playerId,
+      Number(
+        payment?.amount || 0
+      )
     );
-
-    toast(
-      error?.message ||
-      'Não foi possível atualizar o pagamento.'
+  } else {
+    await removeUnitCash(
+      currentGame.id,
+      playerId
     );
   }
+
+  toast(
+    newPaid
+      ? 'Pagamento individual registrado.'
+      : 'Pagamento individual desmarcado.'
+  );
+
+  await renderPayments();
 }
+
 
 async function removeUnit(
   playerId
@@ -4047,23 +3733,14 @@ async function syncUnitCash(
   playerId,
   amount
 ) {
-  const value =
-    Number(amount);
-
   if (
-    !Number.isFinite(value) ||
-    value <= 0
+    !Number.isFinite(
+      amount
+    ) ||
+    amount <= 0
   ) {
-    toast(
-      'Valor do pagamento inválido.'
-    );
-
     return;
   }
-
-  /* =====================================================
-     BUSCAR JOGADOR E JOGO
-  ===================================================== */
 
   const player =
     players.find(
@@ -4072,14 +3749,6 @@ async function syncUnitCash(
         playerId
     );
 
-  if (!player) {
-    toast(
-      'Jogador não encontrado.'
-    );
-
-    return;
-  }
-
   const game =
     allGames.find(
       g =>
@@ -4087,58 +3756,29 @@ async function syncUnitCash(
         gameId
     );
 
-  if (!game) {
-    toast(
-      'Jogo não encontrado.'
-    );
-
-    return;
-  }
-
-
-  /* =====================================================
-     DESCRIÇÃO ÚNICA DO LANÇAMENTO
-  ===================================================== */
-
   const description =
     unitCashDescription(
       gameId,
       playerId
     );
 
-
-  /* =====================================================
-     VERIFICAR SE JÁ EXISTE NO CAIXA
-  ===================================================== */
-
-  const existingResult =
-    await SB
-      .from('cash_entries')
-      .select('*')
-      .eq(
-        'description',
-        description
-      )
-      .maybeSingle();
-
-  if (
-    existingResult.error
-  ) {
-    toast(
-      existingResult.error.message
-    );
-
-    return;
-  }
-
-
-  /* =====================================================
-     DADOS DO LANÇAMENTO
-  ===================================================== */
+  const existing =
+    (
+      await SB
+        .from(
+          'cash_entries'
+        )
+        .select('id')
+        .eq(
+          'description',
+          description
+        )
+        .maybeSingle()
+    ).data;
 
   const payload = {
     entry_date:
-      game.game_date ||
+      game?.game_date ||
       todayKey(),
 
     type:
@@ -4147,66 +3787,31 @@ async function syncUnitCash(
     category:
       'Pagamento individual',
 
-    description:
-      description,
+    description,
 
-    amount:
-      value
+    amount
   };
 
-
-  /* =====================================================
-     ATUALIZAR LANÇAMENTO EXISTENTE
-  ===================================================== */
-
-  if (
-    existingResult.data
-  ) {
-
-    const updateResult =
-      await SB
-        .from('cash_entries')
-        .update(
-          payload
-        )
-        .eq(
-          'id',
-          existingResult.data.id
-        );
-
-    if (
-      updateResult.error
-    ) {
-      toast(
-        updateResult.error.message
-      );
-
-      return;
-    }
-
-    return;
-  }
-
-
-  /* =====================================================
-     CRIAR NOVO LANÇAMENTO
-  ===================================================== */
-
-  const insertResult =
+  if (existing) {
     await SB
-      .from('cash_entries')
+      .from(
+        'cash_entries'
+      )
+      .update(
+        payload
+      )
+      .eq(
+        'id',
+        existing.id
+      );
+  } else {
+    await SB
+      .from(
+        'cash_entries'
+      )
       .insert(
         payload
       );
-
-  if (
-    insertResult.error
-  ) {
-    toast(
-      insertResult.error.message
-    );
-
-    return;
   }
 }
 
@@ -4215,29 +3820,20 @@ async function removeUnitCash(
   gameId,
   playerId
 ) {
-  const description =
-    unitCashDescription(
-      gameId,
-      playerId
+  await SB
+    .from(
+      'cash_entries'
+    )
+    .delete()
+    .eq(
+      'description',
+      unitCashDescription(
+        gameId,
+        playerId
+      )
     );
-
-  const result =
-    await SB
-      .from('cash_entries')
-      .delete()
-      .eq(
-        'description',
-        description
-      );
-
-  if (result.error) {
-    toast(
-      result.error.message
-    );
-
-    return;
-  }
 }
+
 
 /* =========================================================
    HISTÓRICO DE PAGAMENTOS
