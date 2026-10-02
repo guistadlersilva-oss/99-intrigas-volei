@@ -2950,12 +2950,89 @@ function ensurePaymentControls() {
   const monthly =
     $('monthlyTable');
 
-  const unit =
-    $('unitTable');
-
-  if (!monthly || !unit) {
+  if (!monthly) {
     return;
   }
+
+  const parent =
+    monthly.closest(
+      '.tableWrap'
+    ) ||
+    monthly.parentElement;
+
+  if (
+    parent &&
+    !$('paymentAdvancedControls')
+  ) {
+
+    const box =
+      document.createElement(
+        'div'
+      );
+
+    box.id =
+      'paymentAdvancedControls';
+
+    box.style.marginBottom =
+      '18px';
+
+    box.innerHTML = `
+      <div
+        style="
+          display:grid;
+          gap:12px;
+          grid-template-columns:
+          repeat(auto-fit,minmax(220px,1fr));
+        "
+      >
+
+        <label>
+
+          <span>
+            Competência
+          </span>
+
+          <input
+            id="paymentCompetence"
+            type="month"
+            onchange="changePaymentCompetence(this.value)"
+          >
+
+        </label>
+
+
+        <label>
+
+          <span>
+            Valor padrão mensal
+          </span>
+
+          <input
+            id="monthlyValueEdit"
+            type="number"
+            step="0.01"
+            min="0"
+          >
+
+        </label>
+
+
+        <button
+          type="button"
+          onclick="saveDefaultMonthlyValue()"
+        >
+          💾 Salvar valor
+        </button>
+
+      </div>
+    `;
+
+    parent.parentElement.insertBefore(
+      box,
+      parent
+    );
+  }
+}
 
 
   /* =====================================================
@@ -3281,46 +3358,17 @@ async function changePaymentGame(
 
 
 async function renderPayments() {
+
   ensurePaymentControls();
-
-
-  /* =====================================================
-     GARANTIR UM JOGO SELECIONADO
-  ===================================================== */
-
-  if (
-    !currentGame &&
-    allGames.length
-  ) {
-    currentGame =
-      allGames.find(
-        g =>
-          g.game_date >=
-          todayKey()
-      ) ||
-      allGames[0] ||
-      null;
-  }
-
-
-  /* =====================================================
-     ATUALIZAR SELETORES
-  ===================================================== */
-
-  renderPaymentSelectors();
-
-
-  /* =====================================================
-     COMPETÊNCIA
-  ===================================================== */
 
   if (
     $('paymentMonth')
   ) {
+
     $('paymentMonth').textContent =
       new Date(
         paymentCompetence +
-          'T12:00:00'
+        'T12:00:00'
       ).toLocaleDateString(
         'pt-BR',
         {
@@ -3331,33 +3379,52 @@ async function renderPayments() {
             'numeric'
         }
       );
+
   }
 
 
-  /* =====================================================
-     MENSALIDADES
-  ===================================================== */
+  const result =
+    await SB
+      .from(
+        'monthly_payments'
+      )
+      .select('*')
+      .eq(
+        'competence',
+        paymentCompetence
+      );
+
 
   const monthly =
-    (
-      await SB
-        .from(
-          'monthly_payments'
-        )
-        .select('*')
-        .eq(
-          'competence',
-          paymentCompetence
-        )
-    ).data || [];
+    result.data || [];
+
+
+  if (
+    result.error
+  ) {
+
+    console.error(
+      'Erro ao carregar mensalidades:',
+      result.error
+    );
+
+    toast(
+      'Erro ao carregar mensalidades.'
+    );
+
+    return;
+  }
 
 
   $('monthlyTable').innerHTML =
+
     players
+
       .filter(
         p =>
           p.active
       )
+
       .map(
         p => {
 
@@ -3367,6 +3434,7 @@ async function renderPayments() {
                 x.player_id ===
                 p.id
             );
+
 
           const amount =
             Number(
@@ -3387,7 +3455,6 @@ async function renderPayments() {
 
 
               <td>
-
                 <input
                   type="number"
                   min="0"
@@ -3399,12 +3466,10 @@ async function renderPayments() {
                     this.value
                   )"
                 >
-
               </td>
 
 
               <td>
-
                 <span
                   class="badge ${
                     row?.paid
@@ -3418,7 +3483,6 @@ async function renderPayments() {
                       : 'Pendente'
                   }
                 </span>
-
               </td>
 
 
@@ -3430,226 +3494,38 @@ async function renderPayments() {
                     ${!!row?.paid}
                   )"
                 >
+
                   ${
                     row?.paid
                       ? 'Desmarcar'
                       : 'Marcar pago'
                   }
+
                 </button>
 
               </td>
 
             </tr>
           `;
+
         }
       )
+
       .join('') ||
 
     `
       <tr>
+
         <td colspan="4">
           Nenhum jogador ativo.
         </td>
-      </tr>
-    `;
-
-
-  /* =====================================================
-     PAGAMENTOS INDIVIDUAIS
-     
-     Se não existir nenhum jogo, apenas informa.
-     Não chama mais "Histórico financeiro".
-  ===================================================== */
-
-  if (!currentGame) {
-
-    $('unitTable').innerHTML =
-      `
-        <tr>
-
-          <td colspan="5">
-
-            Nenhum jogo cadastrado.
-
-          </td>
-
-        </tr>
-      `;
-
-    return;
-  }
-
-
-  /* =====================================================
-     BUSCAR PAGAMENTOS DO JOGO
-  ===================================================== */
-
-  const unitsResult =
-    await SB
-      .from(
-        'unit_payments'
-      )
-      .select('*')
-      .eq(
-        'game_id',
-        currentGame.id
-      );
-
-
-  if (
-    unitsResult.error
-  ) {
-
-    console.error(
-      'Erro ao carregar pagamentos individuais:',
-      unitsResult.error
-    );
-
-    $('unitTable').innerHTML =
-      `
-        <tr>
-
-          <td colspan="5">
-
-            Não foi possível carregar
-            os pagamentos deste jogo.
-
-          </td>
-
-        </tr>
-      `;
-
-    return;
-  }
-
-
-  const units =
-    unitsResult.data ||
-    [];
-
-
-  /* =====================================================
-     TABELA DE PAGAMENTOS INDIVIDUAIS
-  ===================================================== */
-
-  $('unitTable').innerHTML =
-    units
-      .map(
-        row => {
-
-          const player =
-            players.find(
-              p =>
-                p.id ===
-                row.player_id
-            );
-
-
-          return `
-            <tr>
-
-              <td>
-
-                ${esc(
-                  player?.name ||
-                  'Jogador removido'
-                )}
-
-              </td>
-
-
-              <td>
-
-                <input
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  value="${Number(
-                    row.amount || 0
-                  ).toFixed(2)}"
-                  style="max-width:120px"
-                  onchange="editUnitAmount(
-                    '${row.player_id}',
-                    this.value
-                  )"
-                >
-
-              </td>
-
-
-              <td>
-
-                <span
-                  class="badge ${
-                    row.paid
-                      ? 'paid'
-                      : 'pending'
-                  }"
-                >
-
-                  ${
-                    row.paid
-                      ? 'Pago'
-                      : 'Pendente'
-                  }
-
-                </span>
-
-              </td>
-
-
-              <td>
-
-                <button
-                  onclick="toggleUnit(
-                    '${row.player_id}',
-                    ${!!row.paid}
-                  )"
-                >
-
-                  ${
-                    row.paid
-                      ? 'Desmarcar'
-                      : 'Marcar pago'
-                  }
-
-                </button>
-
-              </td>
-
-
-              <td>
-
-                <button
-                  onclick="removeUnit(
-                    '${row.player_id}'
-                  )"
-                >
-                  🗑️
-                </button>
-
-              </td>
-
-            </tr>
-          `;
-        }
-      )
-      .join('') ||
-
-    `
-      <tr>
-
-        <td colspan="5">
-
-          Nenhuma cobrança individual
-          neste jogo.
-
-        </td>
 
       </tr>
     `;
+
+
+  renderPaymentSelectors();
 }
-
 
 async function saveDefaultMonthlyValue() {
   const value =
@@ -4889,122 +4765,6 @@ async function linkHistoricalPayment(
    CAIXA
 ========================================================= */
 
-function ensureCashControls() {
-  const table =
-    $('cashTable');
-
-  if (
-    !table ||
-    $('cashAdvancedControls')
-  ) {
-    return;
-  }
-
-  const parent =
-    table.closest(
-      '.tableWrap'
-    ) ||
-    table.parentElement;
-
-  if (!parent) {
-    return;
-  }
-
-  const box =
-    document.createElement(
-      'div'
-    );
-
-  box.id =
-    'cashAdvancedControls';
-
-  box.style.marginBottom =
-    '18px';
-
-  box.innerHTML = `
-    <div
-      style="
-        display:grid;
-        gap:12px;
-        grid-template-columns:
-        repeat(auto-fit,minmax(180px,1fr));
-        align-items:end;
-      "
-    >
-
-      <label>
-        <span>
-          Saldo inicial
-        </span>
-
-        <input
-          id="cashInitialInput"
-          type="number"
-          min="0"
-          step="0.01"
-        >
-      </label>
-
-      <button
-        type="button"
-        onclick="saveCashInitial()"
-      >
-        💾 Salvar saldo inicial
-      </button>
-
-      <label>
-        <span>
-          Descrição
-        </span>
-
-        <input
-          id="cashIncomeDescription"
-          type="text"
-          placeholder="Ex.: Pagamento"
-        >
-      </label>
-
-      <label>
-        <span>
-          Categoria
-        </span>
-
-        <input
-          id="cashIncomeCategory"
-          type="text"
-          value="Outros"
-        >
-      </label>
-
-      <label>
-        <span>
-          Valor
-        </span>
-
-        <input
-          id="cashIncomeAmount"
-          type="number"
-          min="0"
-          step="0.01"
-        >
-      </label>
-
-      <button
-        type="button"
-        onclick="addCashIncome()"
-      >
-        ➕ Registrar entrada
-      </button>
-
-    </div>
-  `;
-
-  parent.parentElement.insertBefore(
-    box,
-    parent
-  );
-}
-
 
 async function saveCashInitial() {
   const value =
@@ -5062,9 +4822,422 @@ async function saveCashInitial() {
   await renderCash();
 }
 
+function toggleCashNameField() {
+
+  const type =
+    $('cashType')
+      ?.value;
+
+  const field =
+    $('cashNameField');
+
+  const input =
+    $('cashName');
+
+  if (!field) {
+    return;
+  }
+
+  if (
+    type ===
+    'entrada'
+  ) {
+
+    field.style.display =
+      '';
+
+    if (input) {
+      input.required =
+        true;
+    }
+
+  } else {
+
+    field.style.display =
+      'none';
+
+    if (input) {
+      input.required =
+        false;
+
+      input.value =
+        '';
+    }
+
+  }
+}
+
+
+async function addCashEntry(e) {
+
+  e.preventDefault();
+
+
+  const date =
+    $('cashDate')
+      ?.value ||
+    todayKey();
+
+
+  const type =
+    $('cashType')
+      ?.value ||
+    'entrada';
+
+
+  const category =
+    $('cashCategory')
+      ?.value ||
+    'Outro';
+
+
+  const name =
+    $('cashName')
+      ?.value
+      .trim();
+
+
+  const amount =
+    Number(
+      $('cashAmount')
+        ?.value
+    );
+
+
+  const observation =
+    $('cashDescription')
+      ?.value
+      .trim();
+
+
+  if (!date) {
+
+    toast(
+      'Informe a data.'
+    );
+
+    return;
+  }
+
+
+  if (
+    type ===
+    'entrada' &&
+    !name
+  ) {
+
+    toast(
+      'Informe o nome de quem realizou o pagamento.'
+    );
+
+    return;
+  }
+
+
+  if (
+    !Number.isFinite(
+      amount
+    ) ||
+    amount <= 0
+  ) {
+
+    toast(
+      'Informe um valor válido.'
+    );
+
+    return;
+  }
+
+
+  if (!observation) {
+
+    toast(
+      'Informe uma observação.'
+    );
+
+    return;
+  }
+
+
+  const description =
+    type === 'entrada'
+      ? `${name} | ${observation}`
+      : observation;
+
+
+  const result =
+    await SB
+      .from(
+        'cash_entries'
+      )
+      .insert({
+
+        entry_date:
+          date,
+
+        type,
+
+        category,
+
+        description,
+
+        amount
+
+      });
+
+
+  if (
+    result.error
+  ) {
+
+    console.error(
+      'Erro ao registrar movimentação:',
+      result.error
+    );
+
+    toast(
+      result.error.message
+    );
+
+    return;
+  }
+
+
+  $('cashForm')
+    ?.reset();
+
+
+  if ($('cashDate')) {
+
+    $('cashDate').value =
+      todayKey();
+
+  }
+
+
+  if ($('cashType')) {
+
+    $('cashType').value =
+      'entrada';
+
+  }
+
+
+ function toggleCashNameField() {
+
+  const type =
+    $('cashType')
+      ?.value;
+
+  const field =
+    $('cashNameField');
+
+  const input =
+    $('cashName');
+
+  if (!field) {
+    return;
+  }
+
+  if (
+    type ===
+    'entrada'
+  ) {
+
+    field.style.display =
+      '';
+
+    if (input) {
+      input.required =
+        true;
+    }
+
+  } else {
+
+    field.style.display =
+      'none';
+
+    if (input) {
+      input.required =
+        false;
+
+      input.value =
+        '';
+    }
+
+  }
+}
+
+
+async function addCashEntry(e) {
+
+  e.preventDefault();
+
+
+  const date =
+    $('cashDate')
+      ?.value ||
+    todayKey();
+
+
+  const type =
+    $('cashType')
+      ?.value ||
+    'entrada';
+
+
+  const category =
+    $('cashCategory')
+      ?.value ||
+    'Outro';
+
+
+  const name =
+    $('cashName')
+      ?.value
+      .trim();
+
+
+  const amount =
+    Number(
+      $('cashAmount')
+        ?.value
+    );
+
+
+  const observation =
+    $('cashDescription')
+      ?.value
+      .trim();
+
+
+  if (!date) {
+
+    toast(
+      'Informe a data.'
+    );
+
+    return;
+  }
+
+
+  if (
+    type ===
+    'entrada' &&
+    !name
+  ) {
+
+    toast(
+      'Informe o nome de quem realizou o pagamento.'
+    );
+
+    return;
+  }
+
+
+  if (
+    !Number.isFinite(
+      amount
+    ) ||
+    amount <= 0
+  ) {
+
+    toast(
+      'Informe um valor válido.'
+    );
+
+    return;
+  }
+
+
+  if (!observation) {
+
+    toast(
+      'Informe uma observação.'
+    );
+
+    return;
+  }
+
+
+  const description =
+    type === 'entrada'
+      ? `${name} | ${observation}`
+      : observation;
+
+
+  const result =
+    await SB
+      .from(
+        'cash_entries'
+      )
+      .insert({
+
+        entry_date:
+          date,
+
+        type,
+
+        category,
+
+        description,
+
+        amount
+
+      });
+
+
+  if (
+    result.error
+  ) {
+
+    console.error(
+      'Erro ao registrar movimentação:',
+      result.error
+    );
+
+    toast(
+      result.error.message
+    );
+
+    return;
+  }
+
+
+  $('cashForm')
+    ?.reset();
+
+
+  if ($('cashDate')) {
+
+    $('cashDate').value =
+      todayKey();
+
+  }
+
+
+  if ($('cashType')) {
+
+    $('cashType').value =
+      'entrada';
+
+  }
+
+
+  toggleCashNameField();
+
+
+  toast(
+    type === 'entrada'
+      ? 'Entrada registrada.'
+      : 'Saída registrada.'
+  );
+
+
+  await renderCash();
+}
 
 async function renderCash() {
-  ensureCashControls();
 
   const [state, result] =
     await Promise.all([
