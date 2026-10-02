@@ -3,6 +3,10 @@ const SB = supabase.createClient(
   VOLEI_CONFIG.supabaseAnonKey
 );
 
+/* =========================================================
+   CONFIGURAÇÕES
+========================================================= */
+
 const SKILLS = {
   iniciante: 1,
   basico: 2,
@@ -27,31 +31,50 @@ let settings = null;
 let playerToken = null;
 let playerData = null;
 let allGames = [];
+let activeMode = 'landing';
+let editingGameId = null;
 
-const $ = id => document.getElementById(id);
+
+/* =========================================================
+   UTILITÁRIOS
+========================================================= */
+
+const $ = id =>
+  document.getElementById(id);
 
 const esc = s =>
   String(s ?? '').replace(
     /[&<>"']/g,
-    c => ({
-      '&': '&amp;',
-      '<': '&lt;',
-      '>': '&gt;',
-      '"': '&quot;',
-      "'": '&#39;'
-    }[c])
+    c =>
+      ({
+        '&': '&amp;',
+        '<': '&lt;',
+        '>': '&gt;',
+        '"': '&quot;',
+        "'": '&#39;'
+      }[c])
   );
 
 const money = n =>
-  Number(n || 0).toLocaleString('pt-BR', {
-    style: 'currency',
-    currency: 'BRL'
-  });
+  Number(n || 0).toLocaleString(
+    'pt-BR',
+    {
+      style: 'currency',
+      currency: 'BRL'
+    }
+  );
 
 const dateBR = d =>
   d
-    ? new Date(d + 'T12:00:00').toLocaleDateString('pt-BR')
+    ? new Date(
+        d + 'T12:00:00'
+      ).toLocaleDateString('pt-BR')
     : '—';
+
+const todayKey = () =>
+  new Date()
+    .toISOString()
+    .slice(0, 10);
 
 const monthKey = () => {
   const d = new Date();
@@ -60,31 +83,57 @@ const monthKey = () => {
     d.getFullYear(),
     d.getMonth(),
     1
-  ).toISOString().slice(0, 10);
-};
-
-const toast = m => {
-  const el = $('toast');
-
-  if (!el) {
-    console.log(m);
-    return;
-  }
-
-  el.textContent = m;
-  el.classList.remove('hidden');
-
-  setTimeout(() => {
-    el.classList.add('hidden');
-  }, 2800);
+  )
+    .toISOString()
+    .slice(0, 10);
 };
 
 const sum = arr =>
   arr.reduce(
     (total, player) =>
-      total + (Number(player?.skill_score) || 0),
+      total +
+      (Number(
+        player?.skill_score
+      ) || 0),
     0
   );
+
+function toast(message) {
+  const el = $('toast');
+
+  if (!el) {
+    console.log(message);
+    return;
+  }
+
+  el.textContent = message;
+  el.classList.remove('hidden');
+
+  clearTimeout(
+    toast._timer
+  );
+
+  toast._timer = setTimeout(
+    () => {
+      el.classList.add(
+        'hidden'
+      );
+    },
+    3000
+  );
+}
+
+function normalizeSkill(skill) {
+  const s = String(
+    skill || ''
+  )
+    .trim()
+    .toLowerCase();
+
+  return SKILLS[s]
+    ? s
+    : 'basico';
+}
 
 
 /* =========================================================
@@ -92,6 +141,8 @@ const sum = arr =>
 ========================================================= */
 
 function setMode(mode) {
+  activeMode = mode;
+
   $('landing')?.classList.toggle(
     'hidden',
     mode !== 'landing'
@@ -119,13 +170,75 @@ function setMode(mode) {
 }
 
 
+function goAdminLogin() {
+  playerToken = null;
+  playerData = null;
+
+  const url =
+    new URL(
+      window.location.href
+    );
+
+  url.searchParams.delete(
+    'jogador'
+  );
+
+  url.searchParams.delete(
+    'cadastro'
+  );
+
+  window.history.replaceState(
+    {},
+    '',
+    url.pathname
+  );
+
+  setMode(
+    'adminLogin'
+  );
+}
+
+
+function exitPlayer() {
+  playerToken = null;
+  playerData = null;
+
+  const url =
+    new URL(
+      window.location.href
+    );
+
+  url.searchParams.delete(
+    'jogador'
+  );
+
+  url.searchParams.delete(
+    'cadastro'
+  );
+
+  window.history.replaceState(
+    {},
+    '',
+    url.pathname
+  );
+
+  setMode(
+    'landing'
+  );
+}
+
+
 function playerUrl(token) {
-  return `${location.origin}${location.pathname}?jogador=${token}`;
+  return `${location.origin}${location.pathname}?jogador=${encodeURIComponent(token)}`;
 }
 
 
 function registerUrl() {
-  return `${location.origin}${location.pathname}?cadastro=${settings.invite_token}`;
+  const token =
+    window.__INVITE_TOKEN ||
+    '';
+
+  return `${location.origin}${location.pathname}?cadastro=${encodeURIComponent(token)}`;
 }
 
 
@@ -134,70 +247,73 @@ function registerUrl() {
 ========================================================= */
 
 async function init() {
-  const q = new URLSearchParams(location.search);
+  if ($('year')) {
+    $('year').textContent =
+      new Date().getFullYear();
+  }
 
-  if (q.get('cadastro')) {
+  const query =
+    new URLSearchParams(
+      location.search
+    );
+
+  if (query.get('cadastro')) {
     setMode('register');
 
     if ($('registerToken')) {
       $('registerToken').value =
-        q.get('cadastro');
+        query.get('cadastro');
     }
 
     return;
   }
 
-  if (q.get('jogador')) {
-    playerToken = q.get('jogador');
+  if (query.get('jogador')) {
+    playerToken =
+      query.get('jogador');
 
     await loadPlayer();
 
     return;
   }
 
-  const saved =
-    localStorage.getItem(
-      'volei_player_token'
-    );
-
-  if (saved) {
-    playerToken = saved;
-
-    const ok =
-      await loadPlayer(true);
-
-    if (ok) {
-      return;
-    }
-  }
-
-  const { data } =
+  const result =
     await SB.auth.getSession();
 
-  if (data.session) {
-    session = data.session;
+  session =
+    result.data?.session ||
+    null;
 
-    if (await checkAdmin()) {
+  if (session) {
+    const isAdmin =
+      await checkAdmin();
+
+    if (isAdmin) {
       await enterAdmin();
-
       return;
     }
   }
 
   setMode('landing');
-
-  if ($('year')) {
-    $('year').textContent =
-      new Date().getFullYear();
-  }
 }
 
 
 async function checkAdmin() {
-  const r =
-    await SB.rpc('is_admin');
+  if (!session?.user?.id) {
+    return false;
+  }
 
-  return !r.error && r.data === true;
+  const r =
+    await SB
+      .from('admin_users')
+      .select('user_id')
+      .eq(
+        'user_id',
+        session.user.id
+      )
+      .maybeSingle();
+
+  return !!r.data && !r.error;
 }
 
 
@@ -209,10 +325,21 @@ async function adminLogin(e) {
   e.preventDefault();
 
   const email =
-    $('adminEmail').value.trim();
+    $('adminEmail')
+      ?.value
+      .trim();
 
   const password =
-    $('adminPassword').value;
+    $('adminPassword')
+      ?.value;
+
+  if (!email || !password) {
+    toast(
+      'Informe e-mail e senha.'
+    );
+
+    return;
+  }
 
   const r =
     await SB.auth.signInWithPassword({
@@ -221,18 +348,23 @@ async function adminLogin(e) {
     });
 
   if (r.error) {
-    toast(r.error.message);
+    toast(
+      r.error.message
+    );
 
     return;
   }
 
-  session = r.data.session;
+  session =
+    r.data.session;
 
   if (!await checkAdmin()) {
     await SB.auth.signOut();
 
+    session = null;
+
     toast(
-      'Este usuário não é administrador. Um administrador precisa autorizar o e-mail.'
+      'Este e-mail ainda não está autorizado como administrador.'
     );
 
     return;
@@ -246,14 +378,51 @@ async function adminSignup(e) {
   e.preventDefault();
 
   const email =
-    $('newAdminEmail').value.trim();
+    $('newAdminEmail')
+      ?.value
+      .trim();
 
   const password =
-    $('newAdminPassword').value;
+    $('newAdminPassword')
+      ?.value;
+
+  if (!email || !password) {
+    toast(
+      'Informe e-mail e senha.'
+    );
+
+    return;
+  }
 
   if (password.length < 6) {
     toast(
       'A senha precisa ter pelo menos 6 caracteres.'
+    );
+
+    return;
+  }
+
+  const invite =
+    await SB
+      .from('admin_invites')
+      .select('email')
+      .eq(
+        'email',
+        email.toLowerCase()
+      )
+      .maybeSingle();
+
+  if (invite.error) {
+    toast(
+      invite.error.message
+    );
+
+    return;
+  }
+
+  if (!invite.data) {
+    toast(
+      'Este e-mail não foi autorizado por um administrador.'
     );
 
     return;
@@ -266,17 +435,24 @@ async function adminSignup(e) {
     });
 
   if (r.error) {
-    toast(r.error.message);
+    toast(
+      r.error.message
+    );
 
     return;
   }
 
   toast(
-    'Conta criada. Se o e-mail já foi autorizado por um administrador, você poderá entrar como administrador.'
+    'Conta criada. Confirme o e-mail, se solicitado, e depois faça login.'
   );
 
-  $('newAdminEmail').value = '';
-  $('newAdminPassword').value = '';
+  if ($('newAdminEmail')) {
+    $('newAdminEmail').value = '';
+  }
+
+  if ($('newAdminPassword')) {
+    $('newAdminPassword').value = '';
+  }
 }
 
 
@@ -289,7 +465,9 @@ async function enterAdmin() {
 
   buildAdminNav();
 
-  showAdminPage('dashboard');
+  showAdminPage(
+    'dashboard'
+  );
 }
 
 
@@ -333,29 +511,62 @@ async function loadAdmin() {
     ]);
 
   if (s.error) {
-    toast(s.error.message);
+    toast(
+      s.error.message
+    );
 
     return;
   }
 
-  settings = s.data;
+  settings =
+    s.data;
 
-  players = p.data || [];
+  players =
+    p.data || [];
 
-  const games = g.data || [];
+  allGames =
+    g.data || [];
 
-  allGames = games;
-
-  currentGame =
-    games.find(
+  if (
+    currentGame &&
+    allGames.some(
       x =>
-        x.game_date >=
-        new Date()
-          .toISOString()
-          .slice(0, 10)
-    ) ||
-    games[0] ||
-    null;
+        x.id ===
+        currentGame.id
+    )
+  ) {
+    currentGame =
+      allGames.find(
+        x =>
+          x.id ===
+          currentGame.id
+      );
+  } else {
+    currentGame =
+      allGames.find(
+        x =>
+          x.game_date >=
+          todayKey()
+      ) ||
+      allGames[0] ||
+      null;
+  }
+
+  const state =
+    await SB
+      .from('app_state')
+      .select(
+        'invite_token,cash_initial'
+      )
+      .eq('id', true)
+      .maybeSingle();
+
+  window.__APP_STATE =
+    state.data || {};
+
+  window.__INVITE_TOKEN =
+    state.data?.invite_token ||
+    '';
 
   if ($('adminName')) {
     $('adminName').textContent =
@@ -370,7 +581,14 @@ async function loadAdmin() {
 ========================================================= */
 
 function buildAdminNav() {
-  $('adminNav').innerHTML = [
+  const nav =
+    $('adminNav');
+
+  if (!nav) {
+    return;
+  }
+
+  nav.innerHTML = [
     ['dashboard', '🏠 Visão geral'],
     ['players', '🏐 Jogadores'],
     ['games', '📅 Jogo e times'],
@@ -380,34 +598,61 @@ function buildAdminNav() {
     ['settings', '⚙️ Administração']
   ]
     .map(
-      ([id, title], i) =>
-        `<button class="${i === 0 ? 'active' : ''}" onclick="showAdminPage('${id}',this)">${title}</button>`
+      ([id, title], index) =>
+        `
+          <button
+            class="${
+              index === 0
+                ? 'active'
+                : ''
+            }"
+            onclick="showAdminPage('${id}',this)"
+          >
+            ${title}
+          </button>
+        `
     )
     .join('');
 }
 
 
-function showAdminPage(id, btn) {
+function showAdminPage(
+  id,
+  btn
+) {
   document
-    .querySelectorAll('#adminNav button')
+    .querySelectorAll(
+      '#adminNav button'
+    )
     .forEach(x =>
-      x.classList.remove('active')
+      x.classList.remove(
+        'active'
+      )
     );
 
   if (btn) {
-    btn.classList.add('active');
+    btn.classList.add(
+      'active'
+    );
   }
 
   document
-    .querySelectorAll('#adminPages .page')
+    .querySelectorAll(
+      '#adminPages .page'
+    )
     .forEach(x =>
-      x.classList.remove('active')
+      x.classList.remove(
+        'active'
+      )
     );
 
-  const page = $(`a_${id}`);
+  const page =
+    $(`a_${id}`);
 
   if (page) {
-    page.classList.add('active');
+    page.classList.add(
+      'active'
+    );
   }
 
   if (id === 'dashboard') {
@@ -444,31 +689,72 @@ function showAdminPage(id, btn) {
    DASHBOARD
 ========================================================= */
 
-async function renderDashboard() {
-  const all =
-    await SB
-      .from('cash_entries')
-      .select(
-        'entry_type,amount'
+async function getCashSummary() {
+  const [stateResult, entriesResult] =
+    await Promise.all([
+      SB
+        .from('app_state')
+        .select(
+          'cash_initial'
+        )
+        .eq('id', true)
+        .maybeSingle(),
+
+      SB
+        .from('cash_entries')
+        .select(
+          'type,amount'
+        )
+    ]);
+
+  const initial =
+    Number(
+      stateResult.data
+        ?.cash_initial || 0
+    );
+
+  let balance =
+    initial;
+
+  for (
+    const row of
+      entriesResult.data || []
+  ) {
+    const amount =
+      Number(
+        row.amount || 0
       );
 
-  const bal =
-    (all.data || []).reduce(
-      (a, x) =>
-        a +
-        (
-          x.entry_type === 'in'
-            ? +x.amount
-            : -+x.amount
-        ),
-      0
-    );
+    if (
+      row.type === 'entrada' ||
+      row.type === 'in'
+    ) {
+      balance += amount;
+    } else {
+      balance -= amount;
+    }
+  }
+
+  return {
+    initial,
+    balance
+  };
+}
+
+
+async function renderDashboard() {
+  const cash =
+    await getCashSummary();
 
   $('dashCards').innerHTML = `
     <div class="statCard">
-      <span>Jogadores</span>
+      <span>Jogadores ativos</span>
       <b>
-        ${players.filter(p => p.active).length}
+        ${
+          players.filter(
+            p => p.active
+          ).length
+        }
       </b>
     </div>
 
@@ -487,7 +773,11 @@ async function renderDashboard() {
 
     <div class="statCard">
       <span>Caixa</span>
-      <b>${money(bal)}</b>
+      <b>
+        ${money(
+          cash.balance
+        )}
+      </b>
     </div>
 
     <div class="statCard">
@@ -504,8 +794,12 @@ async function renderDashboard() {
     currentGame
       ? `
         <b>Próximo jogo:</b>
-        ${dateBR(currentGame.game_date)}
-        · ${currentGame.teams_count} times
+        ${dateBR(
+          currentGame.game_date
+        )}
+        · ${
+          currentGame.teams_count
+        } times
 
         <br>
 
@@ -519,8 +813,6 @@ async function renderDashboard() {
       : `
         <div class="notice">
           Nenhum jogo cadastrado.
-          Crie o próximo jogo na aba
-          “Jogo e times”.
         </div>
       `;
 }
@@ -535,93 +827,108 @@ async function renderPlayers() {
     players
       .map(
         p => `
-      <tr>
-        <td>
-          <b>${esc(p.name)}</b>
+          <tr>
 
-          ${
-            p.user_id
-              ? '<span class="badge admin">admin/jogador</span>'
-              : ''
-          }
-        </td>
+            <td>
+              <b>
+                ${esc(
+                  p.name
+                )}
+              </b>
+            </td>
 
-        <td>
-          ${
-            SKILL_LABEL[
-              p.skill_level
-            ] ||
-            p.skill_level
-          }
-        </td>
+            <td>
+              ${
+                SKILL_LABEL[
+                  p.skill
+                ] ||
+                p.skill
+              }
+            </td>
 
-        <td>
-          ${p.skill_score}
-        </td>
+            <td>
+              ${p.skill_score}
+            </td>
 
-        <td>
-          <span class="badge ${
-            p.active
-              ? 'paid'
-              : 'pending'
-          }">
-            ${
-              p.active
-                ? 'Ativo'
-                : 'Inativo'
-            }
-          </span>
-        </td>
+            <td>
+              <span class="badge ${
+                p.active
+                  ? 'paid'
+                  : 'pending'
+              }">
+                ${
+                  p.active
+                    ? 'Ativo'
+                    : 'Inativo'
+                }
+              </span>
+            </td>
 
-        <td>
-          <button
-            onclick="editPlayer('${p.id}')"
-          >
-            Editar
-          </button>
+            <td>
+              <button
+                onclick="editPlayer('${p.id}')"
+              >
+                Editar
+              </button>
 
-          <button
-            onclick="togglePlayer('${p.id}',${!p.active})"
-          >
-            ${
-              p.active
-                ? 'Desativar'
-                : 'Ativar'
-            }
-          </button>
-        </td>
-      </tr>
-    `
+              <button
+                onclick="togglePlayer('${p.id}',${!p.active})"
+              >
+                ${
+                  p.active
+                    ? 'Desativar'
+                    : 'Ativar'
+                }
+              </button>
+
+              <button
+                onclick="deletePlayer('${p.id}')"
+              >
+                🗑️
+              </button>
+            </td>
+
+          </tr>
+        `
       )
       .join('');
 
   $('playersTable').innerHTML =
     rows ||
-    '<tr><td colspan="5">Nenhum jogador cadastrado.</td></tr>';
+    `
+      <tr>
+        <td colspan="5">
+          Nenhum jogador cadastrado.
+        </td>
+      </tr>
+    `;
 
-  $('playerCount').textContent =
-    `${
-      players.filter(
-        p => p.active
-      ).length
-    } ativos`;
+  if ($('playerCount')) {
+    $('playerCount').textContent =
+      `${
+        players.filter(
+          p => p.active
+        ).length
+      } ativos`;
+  }
 }
 
 
 async function editPlayer(id) {
-  const p =
+  const player =
     players.find(
-      x => x.id === id
+      p =>
+        p.id === id
     );
 
-  if (!p) {
+  if (!player) {
     return;
   }
 
   const name =
     prompt(
       'Nome:',
-      p.name
+      player.name
     );
 
   if (name === null) {
@@ -630,49 +937,54 @@ async function editPlayer(id) {
 
   const skill =
     prompt(
-      'Habilidade (iniciante, basico, intermediario, avancado ou expert):',
-      p.skill_level
+      'Habilidade:\niniciante\nbasico\nintermediario\navancado\nexpert',
+      player.skill
     );
 
   if (skill === null) {
     return;
   }
 
-  const key =
-    skill
-      .trim()
-      .toLowerCase();
-
-  if (!SKILLS[key]) {
-    toast(
-      'Habilidade inválida.'
+  const normalized =
+    normalizeSkill(
+      skill
     );
-
-    return;
-  }
 
   const r =
     await SB
       .from('players')
       .update({
-        name: name.trim(),
-        skill_level: key,
+        name:
+          name.trim(),
+
+        skill:
+          normalized,
+
         skill_score:
-          SKILLS[key]
+          SKILLS[
+            normalized
+          ]
       })
-      .eq('id', id);
+      .eq(
+        'id',
+        id
+      );
 
   if (r.error) {
-    toast(r.error.message);
-  } else {
     toast(
-      'Jogador atualizado.'
+      r.error.message
     );
 
-    await loadAdmin();
-
-    renderPlayers();
+    return;
   }
+
+  toast(
+    'Jogador atualizado.'
+  );
+
+  await loadAdmin();
+
+  renderPlayers();
 }
 
 
@@ -686,15 +998,171 @@ async function togglePlayer(
       .update({
         active
       })
-      .eq('id', id);
+      .eq(
+        'id',
+        id
+      );
 
   if (r.error) {
-    toast(r.error.message);
-  } else {
-    await loadAdmin();
+    toast(
+      r.error.message
+    );
 
-    renderPlayers();
+    return;
   }
+
+  await loadAdmin();
+
+  renderPlayers();
+}
+
+
+async function deletePlayer(id) {
+  const player =
+    players.find(
+      p =>
+        p.id === id
+    );
+
+  if (!player) {
+    return;
+  }
+
+  if (
+    !confirm(
+      `Excluir definitivamente ${player.name}?\n\nOs registros financeiros serão preservados no histórico.`
+    )
+  ) {
+    return;
+  }
+
+  /* Preserva mensalidades no histórico */
+  const monthly =
+    (
+      await SB
+        .from(
+          'monthly_payments'
+        )
+        .select('*')
+        .eq(
+          'player_id',
+          id
+        )
+    ).data || [];
+
+  for (
+    const payment of monthly
+  ) {
+    await SB
+      .from(
+        'payment_history'
+      )
+      .insert({
+        payment_date:
+          payment.paid_at
+            ? payment.paid_at.slice(
+                0,
+                10
+              )
+            : todayKey(),
+
+        player_id:
+          id,
+
+        player_name:
+          player.name,
+
+        payment_type:
+          'mensal',
+
+        competence:
+          payment.competence,
+
+        amount:
+          payment.amount,
+
+        notes:
+          'Preservado antes da exclusão do jogador'
+      });
+  }
+
+  /* Preserva pagamentos individuais */
+  const units =
+    (
+      await SB
+        .from(
+          'unit_payments'
+        )
+        .select('*')
+        .eq(
+          'player_id',
+          id
+        )
+    ).data || [];
+
+  for (
+    const payment of units
+  ) {
+    const game =
+      allGames.find(
+        g =>
+          g.id ===
+          payment.game_id
+      );
+
+    await SB
+      .from(
+        'payment_history'
+      )
+      .insert({
+        payment_date:
+          game?.game_date ||
+          todayKey(),
+
+        player_id:
+          id,
+
+        player_name:
+          player.name,
+
+        payment_type:
+          'individual',
+
+        game_id:
+          payment.game_id,
+
+        amount:
+          payment.amount,
+
+        notes:
+          'Preservado antes da exclusão do jogador'
+      });
+  }
+
+  const r =
+    await SB
+      .from('players')
+      .delete()
+      .eq(
+        'id',
+        id
+      );
+
+  if (r.error) {
+    toast(
+      r.error.message
+    );
+
+    return;
+  }
+
+  toast(
+    'Jogador excluído. Histórico financeiro preservado.'
+  );
+
+  await loadAdmin();
+
+  renderPlayers();
 }
 
 
@@ -702,52 +1170,93 @@ async function togglePlayer(
    JOGOS
 ========================================================= */
 
+function nextFriday() {
+  const d =
+    new Date();
+
+  const diff =
+    (
+      5 -
+      d.getDay() +
+      7
+    ) % 7;
+
+  d.setDate(
+    d.getDate() +
+    diff
+  );
+
+  return d
+    .toISOString()
+    .slice(0, 10);
+}
+
+
 async function renderGames() {
-  $('gameFormDate').value =
-    currentGame?.game_date ||
-    (() => {
-      let d = new Date();
+  if ($('gameFormDate')) {
+    $('gameFormDate').value =
+      currentGame?.game_date ||
+      nextFriday();
+  }
 
-      d.setDate(
-        d.getDate() +
-        (
-          (5 -
-            d.getDay() +
-            7) %
-          7
+  if ($('gameTeams')) {
+    $('gameTeams').value =
+      currentGame?.teams_count ||
+      2;
+  }
+
+  if ($('gameNotes')) {
+    $('gameNotes').value =
+      currentGame?.notes ||
+      '';
+  }
+
+  if ($('currentGameTitle')) {
+    $('currentGameTitle').textContent =
+      currentGame
+        ? `Jogo de ${dateBR(
+            currentGame.game_date
+          )}`
+        : 'Nenhum jogo';
+  }
+
+  if ($('gameSelectorAdmin')) {
+    $('gameSelectorAdmin').innerHTML =
+      allGames
+        .map(
+          g => `
+            <option
+              value="${g.id}"
+              ${
+                currentGame?.id ===
+                g.id
+                  ? 'selected'
+                  : ''
+              }
+            >
+              ${dateBR(
+                g.game_date
+              )}
+            </option>
+          `
         )
-      );
+        .join('');
+  }
 
-      return d
-        .toISOString()
-        .slice(0, 10);
-    })();
-
-  $('gameTeams').value =
-    currentGame?.teams_count ||
-    2;
-
-  $('gameNotes').value =
-    currentGame?.notes ||
-    '';
-
-  $('currentGameTitle').textContent =
-    currentGame
-      ? `Jogo de ${dateBR(
-          currentGame.game_date
-        )}`
-      : 'Nenhum jogo';
-
-  $('gamePlayerList').innerHTML =
-    currentGame
-      ? await gamePlayerRows(
-          currentGame.id
-        )
-      : `
-        <div class="notice">
-          Crie um jogo para selecionar quem vai jogar.
-        </div>
-      `;
+  if (
+    $('gamePlayerList')
+  ) {
+    $('gamePlayerList').innerHTML =
+      currentGame
+        ? await gamePlayerRows(
+            currentGame.id
+          )
+        : `
+          <div class="notice">
+            Crie um jogo para selecionar quem vai jogar.
+          </div>
+        `;
+  }
 
   if (currentGame) {
     await renderTeamsAdmin();
@@ -755,33 +1264,96 @@ async function renderGames() {
 }
 
 
+function selectAdminGame(id) {
+  const game =
+    allGames.find(
+      g =>
+        g.id === id
+    );
+
+  if (!game) {
+    return;
+  }
+
+  currentGame =
+    game;
+
+  editingGameId =
+    game.id;
+
+  renderGames();
+}
+
+
+function newGame() {
+  currentGame =
+    null;
+
+  editingGameId =
+    null;
+
+  renderGames();
+}
+
+
 async function saveGame(e) {
   e.preventDefault();
 
-  const payload = {
-    game_date:
-      $('gameFormDate').value,
+  const date =
+    $('gameFormDate')
+      ?.value;
 
-    teams_count:
-      +$('gameTeams').value,
+  const teams =
+    Number(
+      $('gameTeams')
+        ?.value
+    );
 
-    notes:
-      $('gameNotes').value,
+  const notes =
+    $('gameNotes')
+      ?.value ||
+    '';
 
-    created_by:
-      session.user.id
-  };
+  if (!date) {
+    toast(
+      'Informe a data do jogo.'
+    );
+
+    return;
+  }
+
+  if (
+    !Number.isInteger(
+      teams
+    ) ||
+    teams < 1
+  ) {
+    toast(
+      'Informe uma quantidade válida de times.'
+    );
+
+    return;
+  }
 
   let r;
 
-  if (currentGame) {
+  if (editingGameId) {
     r =
       await SB
         .from('games')
-        .update(payload)
+        .update({
+          game_date:
+            date,
+
+          teams_count:
+            teams,
+
+          notes:
+            notes
+        })
         .eq(
           'id',
-          currentGame.id
+          editingGameId
         )
         .select()
         .single();
@@ -789,23 +1361,149 @@ async function saveGame(e) {
     r =
       await SB
         .from('games')
-        .insert(payload)
+        .insert({
+          game_date:
+            date,
+
+          teams_count:
+            teams,
+
+          notes:
+            notes
+        })
         .select()
         .single();
   }
 
   if (r.error) {
-    toast(r.error.message);
+    toast(
+      r.error.message
+    );
 
     return;
   }
 
-  currentGame = r.data;
+  currentGame =
+    r.data;
+
+  editingGameId =
+    r.data.id;
 
   await loadAdmin();
 
   toast(
     'Jogo salvo.'
+  );
+
+  renderGames();
+}
+
+
+async function deleteGame(id) {
+  const game =
+    allGames.find(
+      g =>
+        g.id === id
+    );
+
+  if (!game) {
+    return;
+  }
+
+  if (
+    !confirm(
+      `Excluir o jogo de ${dateBR(
+        game.game_date
+      )}?\n\nOs pagamentos individuais serão preservados no histórico.`
+    )
+  ) {
+    return;
+  }
+
+  const units =
+    (
+      await SB
+        .from(
+          'unit_payments'
+        )
+        .select('*')
+        .eq(
+          'game_id',
+          id
+        )
+    ).data || [];
+
+  for (
+    const payment of units
+  ) {
+    const player =
+      players.find(
+        p =>
+          p.id ===
+          payment.player_id
+      );
+
+    await SB
+      .from(
+        'payment_history'
+      )
+      .insert({
+        payment_date:
+          game.game_date,
+
+        player_id:
+          payment.player_id,
+
+        player_name:
+          player?.name ||
+          'Jogador removido',
+
+        payment_type:
+          'individual',
+
+        game_id:
+          id,
+
+        amount:
+          payment.amount,
+
+        notes:
+          'Preservado antes da exclusão do jogo'
+      });
+  }
+
+  const r =
+    await SB
+      .from('games')
+      .delete()
+      .eq(
+        'id',
+        id
+      );
+
+  if (r.error) {
+    toast(
+      r.error.message
+    );
+
+    return;
+  }
+
+  if (
+    currentGame?.id ===
+    id
+  ) {
+    currentGame =
+      null;
+
+    editingGameId =
+      null;
+  }
+
+  await loadAdmin();
+
+  toast(
+    'Jogo excluído.'
   );
 
   renderGames();
@@ -818,7 +1516,9 @@ async function gamePlayerRows(
   const gp =
     (
       await SB
-        .from('game_players')
+        .from(
+          'game_players'
+        )
         .select('*')
         .eq(
           'game_id',
@@ -828,6 +1528,7 @@ async function gamePlayerRows(
 
   return `
     <div class="tableWrap">
+
       <table>
 
         <thead>
@@ -844,7 +1545,8 @@ async function gamePlayerRows(
           ${
             players
               .filter(
-                p => p.active
+                p =>
+                  p.active
               )
               .map(p => {
                 const x =
@@ -858,14 +1560,17 @@ async function gamePlayerRows(
                   <tr>
 
                     <td>
-                      ${esc(p.name)}
+                      ${esc(
+                        p.name
+                      )}
                     </td>
 
                     <td>
                       ${
                         SKILL_LABEL[
-                          p.skill_level
-                        ]
+                          p.skill
+                        ] ||
+                        p.skill
                       }
                     </td>
 
@@ -935,6 +1640,7 @@ async function gamePlayerRows(
         </tbody>
 
       </table>
+
     </div>
   `;
 }
@@ -948,7 +1654,9 @@ async function saveGamePlayer(
 ) {
   const r =
     await SB
-      .from('game_players')
+      .from(
+        'game_players'
+      )
       .upsert(
         {
           game_id:
@@ -957,7 +1665,8 @@ async function saveGamePlayer(
           player_id:
             playerId,
 
-          present,
+          present:
+            !!present,
 
           payment_mode:
             mode
@@ -969,7 +1678,9 @@ async function saveGamePlayer(
       );
 
   if (r.error) {
-    toast(r.error.message);
+    toast(
+      r.error.message
+    );
 
     return;
   }
@@ -978,10 +1689,28 @@ async function saveGamePlayer(
     mode === 'individual' &&
     present
   ) {
-    await SB
-      .from('unit_payments')
-      .upsert(
-        {
+    const existing =
+      await SB
+        .from(
+          'unit_payments'
+        )
+        .select('id')
+        .eq(
+          'game_id',
+          gameId
+        )
+        .eq(
+          'player_id',
+          playerId
+        )
+        .maybeSingle();
+
+    if (!existing.data) {
+      await SB
+        .from(
+          'unit_payments'
+        )
+        .insert({
           game_id:
             gameId,
 
@@ -989,16 +1718,20 @@ async function saveGamePlayer(
             playerId,
 
           amount:
-            settings.unit_fee
-        },
-        {
-          onConflict:
-            'game_id,player_id'
-        }
-      );
-  } else {
+            settings?.unit_fee ||
+            10
+        });
+    }
+  }
+
+  if (
+    mode !== 'individual' ||
+    !present
+  ) {
     await SB
-      .from('unit_payments')
+      .from(
+        'unit_payments'
+      )
       .delete()
       .eq(
         'game_id',
@@ -1015,7 +1748,7 @@ async function saveGamePlayer(
 
 
 /* =========================================================
-   SORTEIO DOS TIMES
+   SORTEIO
 ========================================================= */
 
 async function drawTeams() {
@@ -1030,8 +1763,12 @@ async function drawTeams() {
   const gp =
     (
       await SB
-        .from('game_players')
-        .select('player_id')
+        .from(
+          'game_players'
+        )
+        .select(
+          'player_id'
+        )
         .eq(
           'game_id',
           currentGame.id
@@ -1127,45 +1864,23 @@ async function drawTeams() {
         x => x.id
       );
 
-    const deleteMembers =
-      await SB
-        .from(
-          'team_members'
-        )
-        .delete()
-        .in(
-          'team_id',
-          oldIds
-        );
-
-    if (
-      deleteMembers.error
-    ) {
-      toast(
-        deleteMembers.error.message
+    await SB
+      .from(
+        'team_members'
+      )
+      .delete()
+      .in(
+        'team_id',
+        oldIds
       );
 
-      return;
-    }
-
-    const deleteTeams =
-      await SB
-        .from('teams')
-        .delete()
-        .eq(
-          'game_id',
-          currentGame.id
-        );
-
-    if (
-      deleteTeams.error
-    ) {
-      toast(
-        deleteTeams.error.message
+    await SB
+      .from('teams')
+      .delete()
+      .eq(
+        'game_id',
+        currentGame.id
       );
-
-      return;
-    }
   }
 
   const teams =
@@ -1239,6 +1954,9 @@ async function drawTeams() {
     const teamPlayers =
       teams[i];
 
+    const teamName =
+      `Time ${i + 1}`;
+
     const result =
       await SB
         .from('teams')
@@ -1246,8 +1964,8 @@ async function drawTeams() {
           game_id:
             currentGame.id,
 
-          team_no:
-            i + 1,
+          name:
+            teamName,
 
           total_skill:
             sum(
@@ -1312,7 +2030,7 @@ async function drawTeams() {
 
 
 /* =========================================================
-   TIMES ADMIN
+   TIMES
 ========================================================= */
 
 async function renderTeamsAdmin() {
@@ -1325,14 +2043,14 @@ async function renderTeamsAdmin() {
       await SB
         .from('teams')
         .select(
-          'id,team_no,total_skill'
+          'id,name,total_skill'
         )
         .eq(
           'game_id',
           currentGame.id
         )
         .order(
-          'team_no'
+          'created_at'
         )
     ).data || [];
 
@@ -1350,7 +2068,9 @@ async function renderTeamsAdmin() {
   const members =
     (
       await SB
-        .from('team_members')
+        .from(
+          'team_members'
+        )
         .select(
           'team_id,player_id'
         )
@@ -1375,8 +2095,8 @@ async function renderTeamsAdmin() {
             .map(
               m =>
                 players.find(
-                  x =>
-                    x.id ===
+                  p =>
+                    p.id ===
                     m.player_id
                 )
             )
@@ -1386,21 +2106,18 @@ async function renderTeamsAdmin() {
           <div class="team">
 
             <h3>
-              Time ${t.team_no}
+              ${esc(
+                t.name
+              )}
 
               <small>
-                ${teamMembers.length}
-                jogador${
-                  teamMembers.length === 1
-                    ? ''
-                    : 'es'
-                }
-
+                ${
+                  teamMembers.length
+                } jogadores
                 ·
                 ${sum(
                   teamMembers
-                )}
-                pontos
+                )} pontos
               </small>
             </h3>
 
@@ -1419,7 +2136,7 @@ async function renderTeamsAdmin() {
                             <small>
                               ${
                                 SKILL_LABEL[
-                                  p.skill_level
+                                  p.skill
                                 ] || ''
                               }
                             </small>
@@ -1465,14 +2182,14 @@ async function movePlayerFromTeam(
       await SB
         .from('teams')
         .select(
-          'id,team_no'
+          'id,name'
         )
         .eq(
           'game_id',
           currentGame.id
         )
         .order(
-          'team_no'
+          'created_at'
         )
     ).data || [];
 
@@ -1485,7 +2202,7 @@ async function movePlayerFromTeam(
 
   if (!available.length) {
     toast(
-      'Não existem outros times para mover este jogador.'
+      'Não existem outros times.'
     );
 
     return;
@@ -1505,49 +2222,37 @@ async function movePlayerFromTeam(
   const options =
     available
       .map(
-        t =>
-          `${t.team_no} - Time ${t.team_no}`
+        (t, i) =>
+          `${i + 1} - ${t.name}`
       )
       .join('\n');
 
   const answer =
     prompt(
-      `Mover ${player.name} para qual time?\n\n${options}\n\nDigite o número do time:`
+      `Mover ${player.name} para:\n\n${options}\n\nDigite o número:`
     );
 
   if (answer === null) {
     return;
   }
 
-  const teamNo =
-    Number(answer);
+  const index =
+    Number(answer) - 1;
 
   if (
-    !Number.isInteger(
-      teamNo
-    )
+    index < 0 ||
+    index >=
+      available.length
   ) {
-    toast(
-      'Informe um número de time válido.'
-    );
-
-    return;
-  }
-
-  const target =
-    available.find(
-      t =>
-        t.team_no ===
-        teamNo
-    );
-
-  if (!target) {
     toast(
       'Time inválido.'
     );
 
     return;
   }
+
+  const target =
+    available[index];
 
   const r =
     await SB
@@ -1578,7 +2283,7 @@ async function movePlayerFromTeam(
   await recalculateTeamScores();
 
   toast(
-    `${player.name} foi movido para o Time ${teamNo}.`
+    `${player.name} foi movido.`
   );
 
   await renderGames();
@@ -1648,6 +2353,10 @@ async function recalculateTeamScores() {
 
 async function sendTeamsWhatsApp() {
   if (!currentGame) {
+    toast(
+      'Nenhum jogo selecionado.'
+    );
+
     return;
   }
 
@@ -1656,11 +2365,14 @@ async function sendTeamsWhatsApp() {
       await SB
         .from('teams')
         .select(
-          'id,team_no'
+          'id,name'
         )
         .eq(
           'game_id',
           currentGame.id
+        )
+        .order(
+          'created_at'
         )
     ).data || [];
 
@@ -1689,7 +2401,7 @@ async function sendTeamsWhatsApp() {
     ts
       .map(
         t =>
-          `TIME ${t.team_no}: ` +
+          `${t.name.toUpperCase()}:\n` +
           members
             .filter(
               m =>
@@ -1707,7 +2419,7 @@ async function sendTeamsWhatsApp() {
             .filter(Boolean)
             .join(', ')
       )
-      .join('\n');
+      .join('\n\n');
 
   window.open(
     'https://wa.me/?text=' +
@@ -1724,33 +2436,24 @@ async function sendTeamsWhatsApp() {
 ========================================================= */
 
 function ensurePaymentControls() {
-  const monthlyTable =
+  const monthly =
     $('monthlyTable');
 
-  const unitTable =
+  const unit =
     $('unitTable');
 
-  if (
-    !monthlyTable ||
-    !unitTable
-  ) {
+  if (!monthly || !unit) {
     return;
   }
 
-  const monthlyParent =
-    monthlyTable.closest(
+  const parent =
+    monthly.closest(
       '.tableWrap'
     ) ||
-    monthlyTable.parentElement;
-
-  const unitParent =
-    unitTable.closest(
-      '.tableWrap'
-    ) ||
-    unitTable.parentElement;
+    monthly.parentElement;
 
   if (
-    monthlyParent &&
+    parent &&
     !$('paymentAdvancedControls')
   ) {
     const box =
@@ -1762,7 +2465,7 @@ function ensurePaymentControls() {
       'paymentAdvancedControls';
 
     box.style.marginBottom =
-      '16px';
+      '18px';
 
     box.innerHTML = `
       <div
@@ -1770,13 +2473,25 @@ function ensurePaymentControls() {
           display:grid;
           gap:12px;
           grid-template-columns:
-            repeat(auto-fit,minmax(220px,1fr));
+          repeat(auto-fit,minmax(220px,1fr));
         "
       >
 
         <label>
           <span>
-            Valor mensal
+            Competência
+          </span>
+
+          <input
+            id="paymentCompetence"
+            type="month"
+            onchange="changePaymentCompetence(this.value)"
+          >
+        </label>
+
+        <label>
+          <span>
+            Valor padrão mensal
           </span>
 
           <input
@@ -1784,26 +2499,30 @@ function ensurePaymentControls() {
             type="number"
             step="0.01"
             min="0"
-            placeholder="Valor mensal"
           >
-
         </label>
 
         <button
           type="button"
           onclick="saveDefaultMonthlyValue()"
         >
-          💾 Salvar valor mensal
+          💾 Salvar valor
         </button>
 
       </div>
     `;
 
-    monthlyParent.parentElement.insertBefore(
+    parent.parentElement.insertBefore(
       box,
-      monthlyParent
+      parent
     );
   }
+
+  const unitParent =
+    unit.closest(
+      '.tableWrap'
+    ) ||
+    unit.parentElement;
 
   if (
     unitParent &&
@@ -1818,7 +2537,7 @@ function ensurePaymentControls() {
       'unitAdvancedControls';
 
     box.style.marginBottom =
-      '16px';
+      '18px';
 
     box.innerHTML = `
       <div
@@ -1826,15 +2545,13 @@ function ensurePaymentControls() {
           display:grid;
           gap:12px;
           grid-template-columns:
-            repeat(auto-fit,minmax(200px,1fr));
+          repeat(auto-fit,minmax(190px,1fr));
           align-items:end;
         "
       >
 
         <label>
-          <span>
-            Jogo
-          </span>
+          <span>Jogo</span>
 
           <select
             id="payGameSelect"
@@ -1843,9 +2560,7 @@ function ensurePaymentControls() {
         </label>
 
         <label>
-          <span>
-            Jogador
-          </span>
+          <span>Jogador</span>
 
           <select
             id="unitPlayerSelect"
@@ -1853,16 +2568,14 @@ function ensurePaymentControls() {
         </label>
 
         <label>
-          <span>
-            Valor
-          </span>
+          <span>Valor</span>
 
           <input
             id="unitAmount"
             type="number"
-            step="0.01"
             min="0"
-            placeholder="Valor"
+            step="0.01"
+            placeholder="10,00"
           >
         </label>
 
@@ -1870,17 +2583,112 @@ function ensurePaymentControls() {
           type="button"
           onclick="addUnitCharge()"
         >
-          ➕ Adicionar cobrança
-        </button>
-
-        <button
-          type="button"
-          onclick="applyGameValue()"
-        >
-          💰 Aplicar valor aos pendentes
+          ➕ Adicionar individual
         </button>
 
       </div>
+
+      <hr style="margin:18px 0">
+
+      <h3>
+        Histórico financeiro
+      </h3>
+
+      <div
+        style="
+          display:grid;
+          gap:12px;
+          grid-template-columns:
+          repeat(auto-fit,minmax(170px,1fr));
+        "
+      >
+
+        <label>
+          <span>Data</span>
+
+          <input
+            id="historyDate"
+            type="date"
+            value="${todayKey()}"
+          >
+        </label>
+
+        <label>
+          <span>Nome</span>
+
+          <input
+            id="historyName"
+            type="text"
+            placeholder="Nome do pagador"
+          >
+        </label>
+
+        <label>
+          <span>Valor</span>
+
+          <input
+            id="historyAmount"
+            type="number"
+            min="0"
+            step="0.01"
+            placeholder="10,00"
+          >
+        </label>
+
+        <label>
+          <span>Tipo</span>
+
+          <select id="historyType">
+            <option value="individual">
+              Individual
+            </option>
+            <option value="mensal">
+              Mensal
+            </option>
+          </select>
+        </label>
+
+        <label>
+          <span>Jogo</span>
+
+          <select id="historyGame">
+            <option value="">
+              Sem jogo
+            </option>
+          </select>
+        </label>
+
+        <label
+          style="
+            display:flex;
+            gap:8px;
+            align-items:center;
+          "
+        >
+          <input
+            id="historyAlreadyInCash"
+            type="checkbox"
+            checked
+          >
+
+          <span>
+            Já está incluído no saldo atual do caixa
+          </span>
+        </label>
+
+        <button
+          type="button"
+          onclick="addHistoricalPayment()"
+        >
+          💾 Salvar histórico
+        </button>
+
+      </div>
+
+      <div
+        id="historyTableWrap"
+        style="margin-top:16px"
+      ></div>
     `;
 
     unitParent.parentElement.insertBefore(
@@ -1891,128 +2699,99 @@ function ensurePaymentControls() {
 }
 
 
-function renderPaymentGameSelector() {
-  const select =
+let paymentCompetence =
+  monthKey();
+
+
+function renderPaymentSelectors() {
+  const gameSelect =
     $('payGameSelect');
 
-  if (!select) {
-    return;
+  if (gameSelect) {
+    gameSelect.innerHTML =
+      allGames
+        .map(
+          g => `
+            <option
+              value="${g.id}"
+              ${
+                currentGame?.id ===
+                g.id
+                  ? 'selected'
+                  : ''
+              }
+            >
+              ${dateBR(
+                g.game_date
+              )}
+              ${
+                g.notes
+                  ? ' · ' +
+                    esc(
+                      g.notes
+                    )
+                  : ''
+              }
+            </option>
+          `
+        )
+        .join('');
   }
 
-  select.innerHTML =
-    allGames.length
-      ? allGames
-          .map(
-            g => `
-              <option
-                value="${g.id}"
-                ${
-                  currentGame?.id ===
-                  g.id
-                    ? 'selected'
-                    : ''
-                }
-              >
-                ${dateBR(
-                  g.game_date
-                )}
-                ${
-                  g.notes
-                    ? ' · ' +
-                      esc(
-                        g.notes
-                      )
-                    : ''
-                }
-              </option>
-            `
-          )
-          .join('')
-      : `
-          <option value="">
-            Nenhum jogo cadastrado
-          </option>
-        `;
-}
-
-
-function renderUnitPlayerSelector(
-  selectedGameId
-) {
-  const select =
+  const playerSelect =
     $('unitPlayerSelect');
 
-  if (!select) {
-    return;
+  if (playerSelect) {
+    playerSelect.innerHTML =
+      players
+        .filter(
+          p =>
+            p.active
+        )
+        .map(
+          p => `
+            <option
+              value="${p.id}"
+            >
+              ${esc(
+                p.name
+              )}
+            </option>
+          `
+        )
+        .join('');
   }
 
-  const activePlayers =
-    players.filter(
-      p => p.active
-    );
+  const historyGame =
+    $('historyGame');
 
-  select.innerHTML =
-    activePlayers.length
-      ? activePlayers
-          .map(
-            p => `
-              <option value="${p.id}">
-                ${esc(p.name)}
-              </option>
-            `
-          )
-          .join('')
-      : `
-          <option value="">
-            Nenhum jogador
-          </option>
-        `;
-}
-
-
-async function changePaymentGame(
-  gameId
-) {
-  if (!gameId) {
-    return;
+  if (historyGame) {
+    historyGame.innerHTML =
+      `
+        <option value="">
+          Sem jogo
+        </option>
+      ` +
+      allGames
+        .map(
+          g => `
+            <option value="${g.id}">
+              ${dateBR(
+                g.game_date
+              )}
+            </option>
+          `
+        )
+        .join('');
   }
 
-  const game =
-    allGames.find(
-      g =>
-        g.id ===
-        gameId
-    );
-
-  if (!game) {
-    return;
-  }
-
-  currentGame = game;
-
-  await renderPayments();
-}
-
-
-async function renderPayments() {
-  ensurePaymentControls();
-
-  const comp =
-    monthKey();
-
-  if ($('paymentMonth')) {
-    $('paymentMonth').textContent =
-      new Date(
-        comp +
-          'T12:00:00'
-      ).toLocaleDateString(
-        'pt-BR',
-        {
-          month:
-            'long',
-          year:
-            'numeric'
-        }
+  if (
+    $('paymentCompetence')
+  ) {
+    $('paymentCompetence').value =
+      paymentCompetence.slice(
+        0,
+        7
       );
   }
 
@@ -2025,18 +2804,67 @@ async function renderPayments() {
         0
       ).toFixed(2);
   }
+}
 
-  renderPaymentGameSelector();
 
-  if (
-    currentGame
-  ) {
-    renderUnitPlayerSelector(
-      currentGame.id
-    );
+async function changePaymentCompetence(
+  value
+) {
+  if (!value) {
+    return;
   }
 
-  const mp =
+  paymentCompetence =
+    `${value}-01`;
+
+  await renderPayments();
+}
+
+
+async function changePaymentGame(
+  id
+) {
+  const game =
+    allGames.find(
+      g =>
+        g.id === id
+    );
+
+  if (!game) {
+    return;
+  }
+
+  currentGame =
+    game;
+
+  await renderPayments();
+}
+
+
+async function renderPayments() {
+  ensurePaymentControls();
+
+  renderPaymentSelectors();
+
+  if (
+    $('paymentMonth')
+  ) {
+    $('paymentMonth').textContent =
+      new Date(
+        paymentCompetence +
+          'T12:00:00'
+      ).toLocaleDateString(
+        'pt-BR',
+        {
+          month:
+            'long',
+          year:
+            'numeric'
+        }
+      );
+  }
+
+  const monthly =
     (
       await SB
         .from(
@@ -2045,29 +2873,28 @@ async function renderPayments() {
         .select('*')
         .eq(
           'competence',
-          comp
+          paymentCompetence
         )
     ).data || [];
 
-  const activePlayers =
-    players.filter(
-      p => p.active
-    );
-
   $('monthlyTable').innerHTML =
-    activePlayers
+    players
+      .filter(
+        p =>
+          p.active
+      )
       .map(p => {
-        const x =
-          mp.find(
-            a =>
-              a.player_id ===
+        const row =
+          monthly.find(
+            x =>
+              x.player_id ===
               p.id
           );
 
         const amount =
           Number(
-            x?.amount ??
-            settings.monthly_fee ??
+            row?.amount ??
+            settings?.monthly_fee ??
             0
           );
 
@@ -2075,14 +2902,16 @@ async function renderPayments() {
           <tr>
 
             <td>
-              ${esc(p.name)}
+              ${esc(
+                p.name
+              )}
             </td>
 
             <td>
               <input
                 type="number"
-                step="0.01"
                 min="0"
+                step="0.01"
                 value="${amount.toFixed(2)}"
                 style="max-width:120px"
                 onchange="editMonthlyAmount(
@@ -2094,12 +2923,12 @@ async function renderPayments() {
 
             <td>
               <span class="badge ${
-                x?.paid
+                row?.paid
                   ? 'paid'
                   : 'pending'
               }">
                 ${
-                  x?.paid
+                  row?.paid
                     ? 'Pago'
                     : 'Pendente'
                 }
@@ -2107,20 +2936,18 @@ async function renderPayments() {
             </td>
 
             <td>
-
               <button
                 onclick="toggleMonthly(
                   '${p.id}',
-                  ${!!x?.paid}
+                  ${!!row?.paid}
                 )"
               >
                 ${
-                  x?.paid
+                  row?.paid
                     ? 'Desmarcar'
                     : 'Marcar pago'
                 }
               </button>
-
             </td>
 
           </tr>
@@ -2145,10 +2972,12 @@ async function renderPayments() {
         </tr>
       `;
 
+    await renderPaymentHistory();
+
     return;
   }
 
-  const up =
+  const units =
     (
       await SB
         .from(
@@ -2162,14 +2991,14 @@ async function renderPayments() {
     ).data || [];
 
   $('unitTable').innerHTML =
-    up
+    units
       .map(
-        x => {
+        row => {
           const player =
             players.find(
               p =>
                 p.id ===
-                x.player_id
+                row.player_id
             );
 
           return `
@@ -2185,14 +3014,14 @@ async function renderPayments() {
               <td>
                 <input
                   type="number"
-                  step="0.01"
                   min="0"
+                  step="0.01"
                   value="${Number(
-                    x.amount || 0
+                    row.amount || 0
                   ).toFixed(2)}"
                   style="max-width:120px"
                   onchange="editUnitAmount(
-                    '${x.player_id}',
+                    '${row.player_id}',
                     this.value
                   )"
                 >
@@ -2200,12 +3029,12 @@ async function renderPayments() {
 
               <td>
                 <span class="badge ${
-                  x.paid
+                  row.paid
                     ? 'paid'
                     : 'pending'
                 }">
                   ${
-                    x.paid
+                    row.paid
                       ? 'Pago'
                       : 'Pendente'
                   }
@@ -2213,32 +3042,28 @@ async function renderPayments() {
               </td>
 
               <td>
-
                 <button
                   onclick="toggleUnit(
-                    '${x.player_id}',
-                    ${!!x.paid}
+                    '${row.player_id}',
+                    ${!!row.paid}
                   )"
                 >
                   ${
-                    x.paid
+                    row.paid
                       ? 'Desmarcar'
                       : 'Marcar pago'
                   }
                 </button>
-
               </td>
 
               <td>
-
                 <button
                   onclick="removeUnit(
-                    '${x.player_id}'
+                    '${row.player_id}'
                   )"
                 >
-                  🗑️ Remover
+                  🗑️
                 </button>
-
               </td>
 
             </tr>
@@ -2249,25 +3074,30 @@ async function renderPayments() {
     `
       <tr>
         <td colspan="5">
-          Nenhum pagamento individual neste jogo.
+          Nenhuma cobrança individual neste jogo.
         </td>
       </tr>
     `;
+
+  await renderPaymentHistory();
 }
 
 
 async function saveDefaultMonthlyValue() {
   const value =
     Number(
-      $('monthlyValueEdit')?.value
+      $('monthlyValueEdit')
+        ?.value
     );
 
   if (
-    !Number.isFinite(value) ||
+    !Number.isFinite(
+      value
+    ) ||
     value < 0
   ) {
     toast(
-      'Informe um valor mensal válido.'
+      'Informe um valor válido.'
     );
 
     return;
@@ -2302,7 +3132,7 @@ async function saveDefaultMonthlyValue() {
     value;
 
   toast(
-    'Valor mensal padrão atualizado.'
+    'Valor mensal atualizado.'
   );
 
   await renderPayments();
@@ -2326,13 +3156,8 @@ async function editMonthlyAmount(
       'Valor inválido.'
     );
 
-    await renderPayments();
-
     return;
   }
-
-  const comp =
-    monthKey();
 
   const r =
     await SB
@@ -2345,7 +3170,7 @@ async function editMonthlyAmount(
             playerId,
 
           competence:
-            comp,
+            paymentCompetence,
 
           amount
         },
@@ -2364,7 +3189,7 @@ async function editMonthlyAmount(
   }
 
   toast(
-    'Valor da mensalidade atualizado.'
+    'Valor mensal atualizado.'
   );
 }
 
@@ -2389,8 +3214,6 @@ async function editUnitAmount(
     toast(
       'Valor inválido.'
     );
-
-    await renderPayments();
 
     return;
   }
@@ -2420,6 +3243,34 @@ async function editUnitAmount(
     return;
   }
 
+  const paid =
+    (
+      await SB
+        .from(
+          'unit_payments'
+        )
+        .select(
+          'paid'
+        )
+        .eq(
+          'game_id',
+          currentGame.id
+        )
+        .eq(
+          'player_id',
+          playerId
+        )
+        .maybeSingle()
+    ).data;
+
+  if (paid?.paid) {
+    await syncUnitCash(
+      currentGame.id,
+      playerId,
+      amount
+    );
+  }
+
   toast(
     'Valor individual atualizado.'
   );
@@ -2428,14 +3279,17 @@ async function editUnitAmount(
 
 async function addUnitCharge() {
   const gameId =
-    $('payGameSelect')?.value;
+    $('payGameSelect')
+      ?.value;
 
   const playerId =
-    $('unitPlayerSelect')?.value;
+    $('unitPlayerSelect')
+      ?.value;
 
   const amount =
     Number(
-      $('unitAmount')?.value
+      $('unitAmount')
+        ?.value
     );
 
   if (!gameId) {
@@ -2496,38 +3350,29 @@ async function addUnitCharge() {
     return;
   }
 
-  const gp =
-    await SB
-      .from(
-        'game_players'
-      )
-      .upsert(
-        {
-          game_id:
-            gameId,
+  await SB
+    .from(
+      'game_players'
+    )
+    .upsert(
+      {
+        game_id:
+          gameId,
 
-          player_id:
-            playerId,
+        player_id:
+          playerId,
 
-          present:
-            true,
+        present:
+          true,
 
-          payment_mode:
-            'individual'
-        },
-        {
-          onConflict:
-            'game_id,player_id'
-        }
-      );
-
-  if (gp.error) {
-    toast(
-      gp.error.message
+        payment_mode:
+          'individual'
+      },
+      {
+        onConflict:
+          'game_id,player_id'
+      }
     );
-
-    return;
-  }
 
   currentGame =
     allGames.find(
@@ -2537,9 +3382,7 @@ async function addUnitCharge() {
     ) ||
     currentGame;
 
-  if (
-    $('unitAmount')
-  ) {
+  if ($('unitAmount')) {
     $('unitAmount').value =
       '';
   }
@@ -2552,79 +3395,24 @@ async function addUnitCharge() {
 }
 
 
-async function applyGameValue() {
-  if (!currentGame) {
-    toast(
-      'Selecione um jogo.'
-    );
-
-    return;
-  }
-
-  const amount =
-    Number(
-      $('unitAmount')?.value ||
-      settings?.unit_fee ||
-      0
-    );
-
-  if (
-    !Number.isFinite(
-      amount
-    ) ||
-    amount <= 0
-  ) {
-    toast(
-      'Informe o valor que será aplicado.'
-    );
-
-    return;
-  }
-
-  const up =
-    (
-      await SB
-        .from(
-          'unit_payments'
-        )
-        .select(
-          'player_id,paid'
-        )
-        .eq(
-          'game_id',
-          currentGame.id
-        )
-    ).data || [];
-
-  const pending =
-    up.filter(
-      x => !x.paid
-    );
-
-  if (!pending.length) {
-    toast(
-      'Não há cobranças individuais pendentes neste jogo.'
-    );
-
-    return;
-  }
-
+async function toggleMonthly(
+  playerId,
+  paid
+) {
   const r =
-    await SB
-      .from(
-        'unit_payments'
-      )
-      .update({
-        amount
-      })
-      .eq(
-        'game_id',
-        currentGame.id
-      )
-      .eq(
-        'paid',
-        false
-      );
+    await SB.rpc(
+      'set_monthly_paid',
+      {
+        p_player:
+          playerId,
+
+        p_competence:
+          paymentCompetence,
+
+        p_paid:
+          !paid
+      }
+    );
 
   if (r.error) {
     toast(
@@ -2635,7 +3423,88 @@ async function applyGameValue() {
   }
 
   toast(
-    `Valor de ${money(amount)} aplicado às cobranças pendentes.`
+    !paid
+      ? 'Mensalidade marcada como paga.'
+      : 'Mensalidade desmarcada.'
+  );
+
+  await renderPayments();
+}
+
+
+async function toggleUnit(
+  playerId,
+  paid
+) {
+  if (!currentGame) {
+    return;
+  }
+
+  const newPaid =
+    !paid;
+
+  const r =
+    await SB.rpc(
+      'set_unit_paid',
+      {
+        p_game:
+          currentGame.id,
+
+        p_player:
+          playerId,
+
+        p_paid:
+          newPaid
+      }
+    );
+
+  if (r.error) {
+    toast(
+      r.error.message
+    );
+
+    return;
+  }
+
+  const payment =
+    (
+      await SB
+        .from(
+          'unit_payments'
+        )
+        .select(
+          'amount'
+        )
+        .eq(
+          'game_id',
+          currentGame.id
+        )
+        .eq(
+          'player_id',
+          playerId
+        )
+        .maybeSingle()
+    ).data;
+
+  if (newPaid) {
+    await syncUnitCash(
+      currentGame.id,
+      playerId,
+      Number(
+        payment?.amount || 0
+      )
+    );
+  } else {
+    await removeUnitCash(
+      currentGame.id,
+      playerId
+    );
+  }
+
+  toast(
+    newPaid
+      ? 'Pagamento individual registrado.'
+      : 'Pagamento individual desmarcado.'
   );
 
   await renderPayments();
@@ -2656,6 +3525,11 @@ async function removeUnit(
   ) {
     return;
   }
+
+  await removeUnitCash(
+    currentGame.id,
+    playerId
+  );
 
   const r =
     await SB
@@ -2688,73 +3562,673 @@ async function removeUnit(
 }
 
 
-async function toggleMonthly(
-  pid,
-  paid
+/* =========================================================
+   CAIXA VINCULADO A PAGAMENTO INDIVIDUAL
+========================================================= */
+
+function unitCashDescription(
+  gameId,
+  playerId
 ) {
-  const r =
-    await SB.rpc(
-      'set_monthly_paid',
-      {
-        p_player:
-          pid,
+  return `Pagamento individual | jogo:${gameId} | jogador:${playerId}`;
+}
 
-        p_competence:
-          monthKey(),
 
-        p_paid:
-          !paid
-      }
+async function syncUnitCash(
+  gameId,
+  playerId,
+  amount
+) {
+  if (
+    !Number.isFinite(
+      amount
+    ) ||
+    amount <= 0
+  ) {
+    return;
+  }
+
+  const player =
+    players.find(
+      p =>
+        p.id ===
+        playerId
     );
 
-  if (r.error) {
-    toast(
-      r.error.message
+  const game =
+    allGames.find(
+      g =>
+        g.id ===
+        gameId
     );
+
+  const description =
+    unitCashDescription(
+      gameId,
+      playerId
+    );
+
+  const existing =
+    (
+      await SB
+        .from(
+          'cash_entries'
+        )
+        .select('id')
+        .eq(
+          'description',
+          description
+        )
+        .maybeSingle()
+    ).data;
+
+  const payload = {
+    entry_date:
+      game?.game_date ||
+      todayKey(),
+
+    type:
+      'entrada',
+
+    category:
+      'Pagamento individual',
+
+    description,
+
+    amount
+  };
+
+  if (existing) {
+    await SB
+      .from(
+        'cash_entries'
+      )
+      .update(
+        payload
+      )
+      .eq(
+        'id',
+        existing.id
+      );
   } else {
-    toast(
-      'Mensalidade atualizada.'
-    );
-
-    await renderPayments();
+    await SB
+      .from(
+        'cash_entries'
+      )
+      .insert(
+        payload
+      );
   }
 }
 
 
-async function toggleUnit(
-  pid,
-  paid
+async function removeUnitCash(
+  gameId,
+  playerId
 ) {
-  if (!currentGame) {
+  await SB
+    .from(
+      'cash_entries'
+    )
+    .delete()
+    .eq(
+      'description',
+      unitCashDescription(
+        gameId,
+        playerId
+      )
+    );
+}
+
+
+/* =========================================================
+   HISTÓRICO DE PAGAMENTOS
+========================================================= */
+
+async function addHistoricalPayment() {
+  const paymentDate =
+    $('historyDate')
+      ?.value ||
+    todayKey();
+
+  const playerName =
+    $('historyName')
+      ?.value
+      .trim();
+
+  const amount =
+    Number(
+      $('historyAmount')
+        ?.value
+    );
+
+  const type =
+    $('historyType')
+      ?.value ||
+    'individual';
+
+  const gameId =
+    $('historyGame')
+      ?.value ||
+    null;
+
+  const alreadyInCash =
+    !!$(
+      'historyAlreadyInCash'
+    )?.checked;
+
+  if (!playerName) {
+    toast(
+      'Informe o nome do pagador.'
+    );
+
     return;
   }
 
-  const r =
-    await SB.rpc(
-      'set_unit_paid',
-      {
-        p_game:
-          currentGame.id,
-
-        p_player:
-          pid,
-
-        p_paid:
-          !paid
-      }
+  if (
+    !Number.isFinite(
+      amount
+    ) ||
+    amount <= 0
+  ) {
+    toast(
+      'Informe um valor válido.'
     );
+
+    return;
+  }
+
+  const linked =
+    players.find(
+      p =>
+        p.name
+          .trim()
+          .toLowerCase() ===
+        playerName
+          .toLowerCase()
+    );
+
+  const r =
+    await SB
+      .from(
+        'payment_history'
+      )
+      .insert({
+        payment_date:
+          paymentDate,
+
+        player_id:
+          linked?.id ||
+          null,
+
+        player_name:
+          playerName,
+
+        payment_type:
+          type,
+
+        game_id:
+          gameId,
+
+        competence:
+          type === 'mensal'
+            ? `${paymentDate.slice(
+                0,
+                7
+              )}-01`
+            : null,
+
+        amount,
+
+        notes:
+          alreadyInCash
+            ? 'Pagamento histórico já incluído no saldo inicial'
+            : 'Pagamento histórico'
+      })
+      .select()
+      .single();
 
   if (r.error) {
     toast(
       r.error.message
     );
-  } else {
+
+    return;
+  }
+
+  /*
+    Se o valor NÃO estiver no saldo inicial,
+    adicionamos a entrada ao caixa.
+  */
+  if (!alreadyInCash) {
+    await SB
+      .from(
+        'cash_entries'
+      )
+      .insert({
+        entry_date:
+          paymentDate,
+
+        type:
+          'entrada',
+
+        category:
+          type === 'mensal'
+            ? 'Mensalidade'
+            : 'Pagamento individual',
+
+        description:
+          `Histórico | ${playerName} | pagamento:${r.data.id}`,
+
+        amount
+      });
+  }
+
+  if ($('historyName')) {
+    $('historyName').value =
+      '';
+  }
+
+  if ($('historyAmount')) {
+    $('historyAmount').value =
+      '';
+  }
+
+  toast(
+    'Pagamento histórico salvo.'
+  );
+
+  await renderPaymentHistory();
+}
+
+
+async function renderPaymentHistory() {
+  const wrap =
+    $('historyTableWrap');
+
+  if (!wrap) {
+    return;
+  }
+
+  const history =
+    (
+      await SB
+        .from(
+          'payment_history'
+        )
+        .select('*')
+        .order(
+          'payment_date',
+          {
+            ascending:
+              false
+          }
+        )
+        .limit(100)
+    ).data || [];
+
+  wrap.innerHTML = `
+    <div class="tableWrap">
+
+      <table>
+
+        <thead>
+          <tr>
+            <th>Data</th>
+            <th>Nome</th>
+            <th>Tipo</th>
+            <th>Jogo</th>
+            <th>Valor</th>
+            <th>Ações</th>
+          </tr>
+        </thead>
+
+        <tbody>
+
+          ${
+            history.length
+              ? history
+                  .map(
+                    h => {
+                      const game =
+                        allGames.find(
+                          g =>
+                            g.id ===
+                            h.game_id
+                        );
+
+                      return `
+                        <tr>
+
+                          <td>
+                            ${dateBR(
+                              h.payment_date
+                            )}
+                          </td>
+
+                          <td>
+                            ${esc(
+                              h.player_name
+                            )}
+                          </td>
+
+                          <td>
+                            ${
+                              h.payment_type ===
+                              'mensal'
+                                ? 'Mensal'
+                                : 'Individual'
+                            }
+                          </td>
+
+                          <td>
+                            ${
+                              game
+                                ? dateBR(
+                                    game.game_date
+                                  )
+                                : '—'
+                            }
+                          </td>
+
+                          <td>
+                            ${money(
+                              h.amount
+                            )}
+                          </td>
+
+                          <td>
+
+                            <button
+                              onclick="editHistoricalPayment('${h.id}')"
+                            >
+                              Editar
+                            </button>
+
+                            <button
+                              onclick="deleteHistoricalPayment('${h.id}')"
+                            >
+                              🗑️
+                            </button>
+
+                            ${
+                              !h.player_id
+                                ? `
+                                  <button
+                                    onclick="linkHistoricalPayment('${h.id}')"
+                                  >
+                                    Vincular
+                                  </button>
+                                `
+                                : ''
+                            }
+
+                          </td>
+
+                        </tr>
+                      `;
+                    }
+                  )
+                  .join('')
+              : `
+                  <tr>
+                    <td colspan="6">
+                      Nenhum histórico cadastrado.
+                    </td>
+                  </tr>
+                `
+          }
+
+        </tbody>
+
+      </table>
+
+    </div>
+  `;
+}
+
+
+async function editHistoricalPayment(
+  id
+) {
+  const result =
+    await SB
+      .from(
+        'payment_history'
+      )
+      .select('*')
+      .eq(
+        'id',
+        id
+      )
+      .single();
+
+  if (result.error) {
     toast(
-      'Pagamento individual atualizado.'
+      result.error.message
     );
 
-    await renderPayments();
+    return;
   }
+
+  const h =
+    result.data;
+
+  const name =
+    prompt(
+      'Nome:',
+      h.player_name
+    );
+
+  if (name === null) {
+    return;
+  }
+
+  const amount =
+    Number(
+      prompt(
+        'Valor:',
+        h.amount
+      )
+    );
+
+  if (
+    !Number.isFinite(
+      amount
+    ) ||
+    amount <= 0
+  ) {
+    toast(
+      'Valor inválido.'
+    );
+
+    return;
+  }
+
+  const date =
+    prompt(
+      'Data (AAAA-MM-DD):',
+      h.payment_date
+    );
+
+  if (!date) {
+    return;
+  }
+
+  const r =
+    await SB
+      .from(
+        'payment_history'
+      )
+      .update({
+        player_name:
+          name.trim(),
+
+        amount,
+
+        payment_date:
+          date
+      })
+      .eq(
+        'id',
+        id
+      );
+
+  if (r.error) {
+    toast(
+      r.error.message
+    );
+
+    return;
+  }
+
+  toast(
+    'Histórico atualizado.'
+  );
+
+  await renderPaymentHistory();
+}
+
+
+async function deleteHistoricalPayment(
+  id
+) {
+  if (
+    !confirm(
+      'Excluir este registro histórico?'
+    )
+  ) {
+    return;
+  }
+
+  const r =
+    await SB
+      .from(
+        'payment_history'
+      )
+      .delete()
+      .eq(
+        'id',
+        id
+      );
+
+  if (r.error) {
+    toast(
+      r.error.message
+    );
+
+    return;
+  }
+
+  await SB
+    .from(
+      'cash_entries'
+    )
+    .delete()
+    .like(
+      'description',
+      `%pagamento:${id}`
+    );
+
+  toast(
+    'Histórico excluído.'
+  );
+
+  await renderPaymentHistory();
+}
+
+
+async function linkHistoricalPayment(
+  id
+) {
+  const result =
+    await SB
+      .from(
+        'payment_history'
+      )
+      .select('*')
+      .eq(
+        'id',
+        id
+      )
+      .single();
+
+  if (result.error) {
+    toast(
+      result.error.message
+    );
+
+    return;
+  }
+
+  const h =
+    result.data;
+
+  const options =
+    players
+      .map(
+        (p, i) =>
+          `${i + 1} - ${p.name}`
+      )
+      .join('\n');
+
+  const answer =
+    prompt(
+      `Vincular "${h.player_name}" a qual jogador?\n\n${options}\n\nDigite o número:`
+    );
+
+  if (answer === null) {
+    return;
+  }
+
+  const index =
+    Number(answer) - 1;
+
+  if (
+    index < 0 ||
+    index >=
+      players.length
+  ) {
+    toast(
+      'Jogador inválido.'
+    );
+
+    return;
+  }
+
+  const player =
+    players[index];
+
+  const r =
+    await SB
+      .from(
+        'payment_history'
+      )
+      .update({
+        player_id:
+          player.id,
+
+        player_name:
+          player.name
+      })
+      .eq(
+        'id',
+        id
+      );
+
+  if (r.error) {
+    toast(
+      r.error.message
+    );
+
+    return;
+  }
+
+  toast(
+    'Histórico vinculado ao jogador.'
+  );
+
+  await renderPaymentHistory();
 }
 
 
@@ -2792,7 +4266,7 @@ function ensureCashControls() {
     'cashAdvancedControls';
 
   box.style.marginBottom =
-    '16px';
+    '18px';
 
   box.innerHTML = `
     <div
@@ -2800,41 +4274,65 @@ function ensureCashControls() {
         display:grid;
         gap:12px;
         grid-template-columns:
-          repeat(auto-fit,minmax(180px,1fr));
+        repeat(auto-fit,minmax(180px,1fr));
         align-items:end;
       "
     >
 
       <label>
-        <span>Descrição</span>
+        <span>
+          Saldo inicial
+        </span>
+
+        <input
+          id="cashInitialInput"
+          type="number"
+          min="0"
+          step="0.01"
+        >
+      </label>
+
+      <button
+        type="button"
+        onclick="saveCashInitial()"
+      >
+        💾 Salvar saldo inicial
+      </button>
+
+      <label>
+        <span>
+          Descrição
+        </span>
 
         <input
           id="cashIncomeDescription"
           type="text"
-          placeholder="Ex.: Pagamento individual"
+          placeholder="Ex.: Pagamento"
         >
       </label>
 
       <label>
-        <span>Categoria</span>
+        <span>
+          Categoria
+        </span>
 
         <input
           id="cashIncomeCategory"
           type="text"
-          value="Mensalidade"
-          placeholder="Categoria"
+          value="Outros"
         >
       </label>
 
       <label>
-        <span>Valor</span>
+        <span>
+          Valor
+        </span>
 
         <input
           id="cashIncomeAmount"
           type="number"
           min="0"
           step="0.01"
-          placeholder="0,00"
         >
       </label>
 
@@ -2855,16 +4353,86 @@ function ensureCashControls() {
 }
 
 
+async function saveCashInitial() {
+  const value =
+    Number(
+      $('cashInitialInput')
+        ?.value
+    );
+
+  if (
+    !Number.isFinite(
+      value
+    ) ||
+    value < 0
+  ) {
+    toast(
+      'Informe um saldo válido.'
+    );
+
+    return;
+  }
+
+  const r =
+    await SB
+      .from('app_state')
+      .update({
+        cash_initial:
+          value,
+
+        updated_at:
+          new Date().toISOString()
+      })
+      .eq(
+        'id',
+        true
+      );
+
+  if (r.error) {
+    toast(
+      r.error.message
+    );
+
+    return;
+  }
+
+  window.__APP_STATE =
+    window.__APP_STATE || {};
+
+  window.__APP_STATE.cash_initial =
+    value;
+
+  toast(
+    'Saldo inicial atualizado.'
+  );
+
+  await renderCash();
+}
+
+
 async function renderCash() {
   ensureCashControls();
 
-  const ce =
-    (
-      await SB
-        .from(
-          'cash_entries'
+  const [state, result] =
+    await Promise.all([
+      SB
+        .from('app_state')
+        .select(
+          'cash_initial'
         )
+        .eq('id', true)
+        .maybeSingle(),
+
+      SB
+        .from('cash_entries')
         .select('*')
+        .order(
+          'entry_date',
+          {
+            ascending:
+              false
+          }
+        )
         .order(
           'created_at',
           {
@@ -2872,77 +4440,111 @@ async function renderCash() {
               false
           }
         )
-    ).data || [];
+    ]);
 
-  const ins =
-    ce
-      .filter(
-        x =>
-          x.entry_type ===
-          'in'
-      )
-      .reduce(
-        (a, x) =>
-          a +
-          +x.amount,
-        0
+  const initial =
+    Number(
+      state.data?.cash_initial ||
+      0
+    );
+
+  const entries =
+    result.data || [];
+
+  let entradas =
+    0;
+
+  let saidas =
+    0;
+
+  for (
+    const row of entries
+  ) {
+    const amount =
+      Number(
+        row.amount || 0
       );
 
-  const outs =
-    ce
-      .filter(
-        x =>
-          x.entry_type ===
-          'out'
-      )
-      .reduce(
-        (a, x) =>
-          a +
-          +x.amount,
-        0
-      );
+    if (
+      row.type ===
+        'entrada' ||
+      row.type ===
+        'in'
+    ) {
+      entradas +=
+        amount;
+    } else {
+      saidas +=
+        amount;
+    }
+  }
+
+  const balance =
+    initial +
+    entradas -
+    saidas;
+
+  if ($('cashInitialInput')) {
+    $('cashInitialInput').value =
+      initial.toFixed(2);
+  }
 
   $('cashStats').innerHTML = `
     <div class="statCard">
+      <span>Saldo inicial</span>
+      <b>
+        ${money(
+          initial
+        )}
+      </b>
+    </div>
+
+    <div class="statCard">
       <span>Entradas</span>
       <b>
-        ${money(ins)}
+        ${money(
+          entradas
+        )}
       </b>
     </div>
 
     <div class="statCard">
       <span>Saídas</span>
       <b>
-        ${money(outs)}
+        ${money(
+          saidas
+        )}
       </b>
     </div>
 
     <div class="statCard">
-      <span>Saldo</span>
+      <span>Saldo atual</span>
       <b>
-        ${money(ins - outs)}
+        ${money(
+          balance
+        )}
       </b>
     </div>
   `;
 
   $('cashTable').innerHTML =
-    ce
+    entries
       .map(
-        x => `
+        row => `
           <tr>
 
             <td>
-              ${new Date(
-                x.created_at
-              ).toLocaleDateString(
-                'pt-BR'
+              ${dateBR(
+                row.entry_date
               )}
             </td>
 
             <td>
               ${
-                x.entry_type ===
-                'in'
+                row.type ===
+                  'entrada' ||
+                row.type ===
+                  'in'
                   ? 'Entrada'
                   : 'Saída'
               }
@@ -2950,27 +4552,33 @@ async function renderCash() {
 
             <td>
               ${esc(
-                x.category
+                row.category
               )}
             </td>
 
             <td>
               ${esc(
-                x.description
+                row.description
               )}
             </td>
 
             <td>
               ${money(
-                x.amount
+                row.amount
               )}
             </td>
 
             <td>
               <button
-                onclick="deleteCashEntry('${x.id}')"
+                onclick="editCashEntry('${row.id}')"
               >
-                🗑️ Excluir
+                Editar
+              </button>
+
+              <button
+                onclick="deleteCashEntry('${row.id}')"
+              >
+                🗑️
               </button>
             </td>
 
@@ -2981,7 +4589,7 @@ async function renderCash() {
     `
       <tr>
         <td colspan="6">
-          Sem movimentações.
+          Nenhuma movimentação.
         </td>
       </tr>
     `;
@@ -3026,17 +4634,17 @@ async function addCashIncome() {
         'cash_entries'
       )
       .insert({
-        entry_type:
-          'in',
+        entry_date:
+          todayKey(),
+
+        type:
+          'entrada',
 
         category,
 
         description,
 
-        amount,
-
-        created_by:
-          session.user.id
+        amount
       });
 
   if (r.error) {
@@ -3047,19 +4655,11 @@ async function addCashIncome() {
     return;
   }
 
-  if (
-    $('cashIncomeAmount')
-  ) {
-    $('cashIncomeAmount').value =
-      '';
-  }
+  $('cashIncomeAmount').value =
+    '';
 
-  if (
-    $('cashIncomeDescription')
-  ) {
-    $('cashIncomeDescription').value =
-      '';
-  }
+  $('cashIncomeDescription').value =
+    '';
 
   toast(
     'Entrada registrada.'
@@ -3073,9 +4673,21 @@ async function addExpense(e) {
   e.preventDefault();
 
   const amount =
-    +$('expenseAmount').value;
+    Number(
+      $('expenseAmount')
+        ?.value
+    );
 
-  if (!amount) {
+  if (
+    !Number.isFinite(
+      amount
+    ) ||
+    amount <= 0
+  ) {
+    toast(
+      'Informe um valor válido.'
+    );
+
     return;
   }
 
@@ -3085,21 +4697,23 @@ async function addExpense(e) {
         'cash_entries'
       )
       .insert({
-        entry_type:
-          'out',
+        entry_date:
+          todayKey(),
+
+        type:
+          'saida',
 
         category:
           $('expenseCategory')
-            .value,
+            ?.value ||
+          'Despesa',
 
         description:
           $('expenseDescription')
-            .value,
+            ?.value ||
+          '',
 
-        amount,
-
-        created_by:
-          session.user.id
+        amount
       });
 
   if (r.error) {
@@ -3110,13 +4724,107 @@ async function addExpense(e) {
     return;
   }
 
-  $('expenseForm').reset();
+  $('expenseForm')
+    ?.reset();
 
   toast(
     'Saída registrada.'
   );
 
-  renderCash();
+  await renderCash();
+}
+
+
+async function editCashEntry(
+  id
+) {
+  const result =
+    await SB
+      .from(
+        'cash_entries'
+      )
+      .select('*')
+      .eq(
+        'id',
+        id
+      )
+      .single();
+
+  if (result.error) {
+    toast(
+      result.error.message
+    );
+
+    return;
+  }
+
+  const row =
+    result.data;
+
+  const description =
+    prompt(
+      'Descrição:',
+      row.description ||
+        ''
+    );
+
+  if (
+    description ===
+    null
+  ) {
+    return;
+  }
+
+  const amount =
+    Number(
+      prompt(
+        'Valor:',
+        row.amount
+      )
+    );
+
+  if (
+    !Number.isFinite(
+      amount
+    ) ||
+    amount <= 0
+  ) {
+    toast(
+      'Valor inválido.'
+    );
+
+    return;
+  }
+
+  const r =
+    await SB
+      .from(
+        'cash_entries'
+      )
+      .update({
+        description:
+          description.trim(),
+
+        amount
+      })
+      .eq(
+        'id',
+        id
+      );
+
+  if (r.error) {
+    toast(
+      r.error.message
+    );
+
+    return;
+  }
+
+  toast(
+    'Lançamento atualizado.'
+  );
+
+  await renderCash();
 }
 
 
@@ -3163,24 +4871,23 @@ async function deleteCashEntry(
 ========================================================= */
 
 async function renderMedia() {
-  const v =
-    (
-      await SB
-        .from(
-          'var_links'
-        )
-        .select('*')
-        .order(
-          'created_at',
-          {
-            ascending:
-              false
-          }
-        )
-    ).data || [];
+  const result =
+    await SB
+      .from('var_links')
+      .select('*')
+      .order(
+        'created_at',
+        {
+          ascending:
+            false
+        }
+      );
+
+  const links =
+    result.data || [];
 
   $('varAdminList').innerHTML =
-    v
+    links
       .map(
         x => `
           <div class="mediaRow">
@@ -3194,7 +4901,7 @@ async function renderMedia() {
 
               <small>
                 ${dateBR(
-                  x.game_date
+                  x.link_date
                 )}
               </small>
             </div>
@@ -3217,6 +4924,12 @@ async function renderMedia() {
               </a>
 
               <button
+                onclick="editVar('${x.id}')"
+              >
+                Editar
+              </button>
+
+              <button
                 onclick="deleteVar('${x.id}')"
               >
                 🗑️
@@ -3230,18 +4943,43 @@ async function renderMedia() {
       .join('') ||
     `
       <div class="notice">
-        Nenhum vídeo.
+        Nenhum vídeo cadastrado.
       </div>
     `;
 
-  $('spotifyInput').value =
-    settings?.spotify_url ||
-    '';
+  if ($('spotifyInput')) {
+    $('spotifyInput').value =
+      settings?.spotify_url ||
+      '';
+  }
 }
 
 
 async function addVar(e) {
   e.preventDefault();
+
+  const title =
+    $('varTitle')
+      ?.value
+      .trim();
+
+  const url =
+    $('varUrl')
+      ?.value
+      .trim();
+
+  const date =
+    $('varDate')
+      ?.value ||
+    null;
+
+  if (!title || !url) {
+    toast(
+      'Informe título e link.'
+    );
+
+    return;
+  }
 
   const r =
     await SB
@@ -3249,36 +4987,113 @@ async function addVar(e) {
         'var_links'
       )
       .insert({
-        title:
-          $('varTitle')
-            .value,
+        title,
 
-        url:
-          $('varUrl')
-            .value,
+        url,
 
-        game_date:
-          $('varDate')
-            .value ||
-          null,
-
-        created_by:
-          session.user.id
+        link_date:
+          date
       });
 
   if (r.error) {
     toast(
       r.error.message
     );
-  } else {
+
+    return;
+  }
+
+  $('varForm')
+    ?.reset();
+
+  toast(
+    'Vídeo adicionado.'
+  );
+
+  await renderMedia();
+}
+
+
+async function editVar(id) {
+  const result =
+    await SB
+      .from(
+        'var_links'
+      )
+      .select('*')
+      .eq(
+        'id',
+        id
+      )
+      .single();
+
+  if (result.error) {
     toast(
-      'Vídeo adicionado.'
+      result.error.message
     );
 
-    $('varForm').reset();
-
-    renderMedia();
+    return;
   }
+
+  const row =
+    result.data;
+
+  const title =
+    prompt(
+      'Título:',
+      row.title
+    );
+
+  if (
+    title ===
+    null
+  ) {
+    return;
+  }
+
+  const url =
+    prompt(
+      'Link:',
+      row.url
+    );
+
+  if (
+    url ===
+    null
+  ) {
+    return;
+  }
+
+  const r =
+    await SB
+      .from(
+        'var_links'
+      )
+      .update({
+        title:
+          title.trim(),
+
+        url:
+          url.trim()
+      })
+      .eq(
+        'id',
+        id
+      );
+
+  if (r.error) {
+    toast(
+      r.error.message
+    );
+
+    return;
+  }
+
+  toast(
+    'Vídeo atualizado.'
+  );
+
+  await renderMedia();
 }
 
 
@@ -3287,7 +5102,7 @@ async function deleteVar(
 ) {
   if (
     !confirm(
-      'Excluir este vídeo do VAR?'
+      'Excluir este vídeo?'
     )
   ) {
     return;
@@ -3325,8 +5140,9 @@ async function saveSpotify(e) {
 
   const url =
     $('spotifyInput')
-      .value
-      .trim();
+      ?.value
+      .trim() ||
+    '';
 
   const r =
     await SB
@@ -3338,8 +5154,7 @@ async function saveSpotify(e) {
           url,
 
         updated_at:
-          new Date()
-            .toISOString()
+          new Date().toISOString()
       })
       .eq(
         'id',
@@ -3350,14 +5165,16 @@ async function saveSpotify(e) {
     toast(
       r.error.message
     );
-  } else {
-    settings.spotify_url =
-      url;
 
-    toast(
-      'Playlist salva.'
-    );
+    return;
   }
+
+  settings.spotify_url =
+    url;
+
+  toast(
+    'Playlist salva.'
+  );
 }
 
 
@@ -3365,41 +5182,60 @@ async function saveSpotify(e) {
    ADMINISTRAÇÃO
 ========================================================= */
 
+function adminPlayerStorageKey() {
+  return session?.user?.id
+    ? `volei_admin_player_${session.user.id}`
+    : '';
+}
+
+
 async function renderSettings() {
+  const savedPlayerId =
+    localStorage.getItem(
+      adminPlayerStorageKey()
+    );
+
   const mine =
-    (
-      await SB
-        .from('players')
-        .select('*')
-        .eq(
-          'user_id',
-          session.user.id
-        )
-        .maybeSingle()
-    ).data;
+    players.find(
+      p =>
+        p.id ===
+        savedPlayerId
+    );
 
-  $('adminPlayerName').value =
-    mine?.name ||
-    '';
+  if ($('adminPlayerName')) {
+    $('adminPlayerName').value =
+      mine?.name ||
+      '';
+  }
 
-  $('adminPlayerSkill').value =
-    mine?.skill_level ||
-    'intermediario';
+  if ($('adminPlayerSkill')) {
+    $('adminPlayerSkill').value =
+      mine?.skill ||
+      'intermediario';
+  }
 
-  $('monthlyFee').value =
-    settings.monthly_fee ||
-    0;
+  if ($('monthlyFee')) {
+    $('monthlyFee').value =
+      settings?.monthly_fee ||
+      0;
+  }
 
-  $('unitFee').value =
-    settings.unit_fee ||
-    0;
+  if ($('unitFee')) {
+    $('unitFee').value =
+      settings?.unit_fee ||
+      0;
+  }
 
-  $('instagramUrl').value =
-    settings.instagram_url ||
-    '';
+  if ($('instagramUrl')) {
+    $('instagramUrl').value =
+      settings?.instagram_url ||
+      '';
+  }
 
-  $('registerLink').value =
-    registerUrl();
+  if ($('registerLink')) {
+    $('registerLink').value =
+      registerUrl();
+  }
 
   const admins =
     (
@@ -3415,46 +5251,48 @@ async function renderSettings() {
         )
     ).data || [];
 
-  $('adminsList').innerHTML =
-    admins
-      .map(
-        a => `
-          <tr>
+  if ($('adminsList')) {
+    $('adminsList').innerHTML =
+      admins
+        .map(
+          a => `
+            <tr>
 
-            <td>
-              ${esc(
-                a.email || ''
-              )}
-            </td>
+              <td>
+                ${esc(
+                  a.email
+                )}
+              </td>
 
-            <td>
-              ${
-                a.user_id ===
-                session.user.id
-                  ? 'Você'
-                  : ''
-              }
-            </td>
+              <td>
+                ${
+                  a.user_id ===
+                  session.user.id
+                    ? 'Você'
+                    : ''
+                }
+              </td>
 
-            <td>
-              ${
-                a.user_id ===
-                session.user.id
-                  ? '—'
-                  : `
-                    <button
-                      onclick="removeAdmin('${a.user_id}')"
-                    >
-                      Remover
-                    </button>
-                  `
-              }
-            </td>
+              <td>
+                ${
+                  a.user_id ===
+                  session.user.id
+                    ? '—'
+                    : `
+                      <button
+                        onclick="removeAdmin('${a.user_id}')"
+                      >
+                        Remover
+                      </button>
+                    `
+                }
+              </td>
 
-          </tr>
-        `
-      )
-      .join('');
+            </tr>
+          `
+        )
+        .join('');
+  }
 }
 
 
@@ -3468,23 +5306,25 @@ async function saveSettings(e) {
       )
       .update({
         monthly_fee:
-          +$(
-            'monthlyFee'
-          ).value || 0,
+          Number(
+            $('monthlyFee')
+              ?.value
+          ) || 0,
 
         unit_fee:
-          +$(
-            'unitFee'
-          ).value || 0,
+          Number(
+            $('unitFee')
+              ?.value
+          ) || 0,
 
         instagram_url:
           $('instagramUrl')
-            .value
-            .trim(),
+            ?.value
+            .trim() ||
+          '',
 
         updated_at:
-          new Date()
-            .toISOString()
+          new Date().toISOString()
       })
       .eq(
         'id',
@@ -3495,61 +5335,76 @@ async function saveSettings(e) {
     toast(
       r.error.message
     );
-  } else {
-    await loadAdmin();
 
-    toast(
-      'Configurações salvas.'
-    );
-
-    renderSettings();
+    return;
   }
+
+  await loadAdmin();
+
+  toast(
+    'Configurações salvas.'
+  );
+
+  renderSettings();
 }
 
 
 async function rotateInvite() {
+  const newToken =
+    crypto.randomUUID()
+      .replace(
+        /-/g,
+        ''
+      );
+
   const r =
     await SB
-      .from(
-        'group_settings'
-      )
+      .from('app_state')
       .update({
         invite_token:
-          crypto.randomUUID(),
+          newToken,
 
         updated_at:
-          new Date()
-            .toISOString()
+          new Date().toISOString()
       })
       .eq(
         'id',
         true
-      )
-      .select()
-      .single();
+      );
 
   if (r.error) {
     toast(
       r.error.message
     );
-  } else {
-    settings =
-      r.data;
 
+    return;
+  }
+
+  window.__INVITE_TOKEN =
+    newToken;
+
+  if ($('registerLink')) {
     $('registerLink').value =
       registerUrl();
-
-    toast(
-      'Novo link de cadastro gerado. O anterior deixa de funcionar.'
-    );
   }
+
+  toast(
+    'Novo link de cadastro criado.'
+  );
 }
 
 
 async function copyRegister() {
-  await navigator.clipboard.writeText(
+  const value =
     $('registerLink')
-      .value
+      ?.value;
+
+  if (!value) {
+    return;
+  }
+
+  await navigator.clipboard.writeText(
+    value
   );
 
   toast(
@@ -3559,11 +5414,14 @@ async function copyRegister() {
 
 
 function sendRegisterWhatsApp() {
+  const link =
+    $('registerLink')
+      ?.value;
+
   const text =
     `🏐 99% INTRIGAS · 1% VÔLEI\n\n` +
-    `Pessoal, faça seu cadastro para participar dos sorteios dos times:\n\n` +
-    `${$('registerLink').value}\n\n` +
-    `Informe apenas seu nome e seu nível de habilidade.`;
+    `Faça seu cadastro para participar dos jogos e sorteios dos times:\n\n` +
+    `${link}`;
 
   window.open(
     'https://wa.me/?text=' +
@@ -3578,37 +5436,68 @@ function sendRegisterWhatsApp() {
 async function addAdmin(e) {
   e.preventDefault();
 
-  const r =
-    await SB.rpc(
-      'set_admin_email',
-      {
-        p_email:
-          $('adminInviteEmail')
-            .value
-            .trim()
-      }
+  const email =
+    $('adminInviteEmail')
+      ?.value
+      .trim()
+      .toLowerCase();
+
+  if (!email) {
+    toast(
+      'Informe o e-mail.'
     );
+
+    return;
+  }
+
+  const r =
+    await SB
+      .from(
+        'admin_invites'
+      )
+      .upsert(
+        {
+          email
+        },
+        {
+          onConflict:
+            'email'
+        }
+      );
 
   if (r.error) {
     toast(
       r.error.message
     );
-  } else {
-    $('adminInviteEmail')
-      .value = '';
 
-    toast(
-      'E-mail autorizado como administrador. Se ainda não tiver conta, poderá criar uma na tela de login.'
-    );
-
-    renderSettings();
+    return;
   }
+
+  $('adminInviteEmail').value =
+    '';
+
+  toast(
+    'E-mail autorizado como administrador.'
+  );
+
+  await renderSettings();
 }
 
 
 async function removeAdmin(
   id
 ) {
+  if (
+    id ===
+    session?.user?.id
+  ) {
+    toast(
+      'Você não pode remover seu próprio acesso por aqui.'
+    );
+
+    return;
+  }
+
   if (
     !confirm(
       'Remover este administrador?'
@@ -3618,25 +5507,29 @@ async function removeAdmin(
   }
 
   const r =
-    await SB.rpc(
-      'remove_admin',
-      {
-        p_user:
-          id
-      }
-    );
+    await SB
+      .from(
+        'admin_users'
+      )
+      .delete()
+      .eq(
+        'user_id',
+        id
+      );
 
   if (r.error) {
     toast(
       r.error.message
     );
-  } else {
-    toast(
-      'Administrador removido.'
-    );
 
-    renderSettings();
+    return;
   }
+
+  toast(
+    'Administrador removido.'
+  );
+
+  await renderSettings();
 }
 
 
@@ -3645,86 +5538,112 @@ async function saveMyPlayer(e) {
 
   const name =
     $('adminPlayerName')
-      .value
+      ?.value
       .trim();
 
   const skill =
-    $('adminPlayerSkill')
-      .value;
+    normalizeSkill(
+      $('adminPlayerSkill')
+        ?.value
+    );
 
-  if (
-    !name ||
-    !SKILLS[skill]
-  ) {
+  if (!name) {
     toast(
-      'Preencha nome e habilidade.'
+      'Informe seu nome.'
     );
 
     return;
   }
 
-  const existing =
-    (
+  const savedId =
+    localStorage.getItem(
+      adminPlayerStorageKey()
+    );
+
+  let player =
+    savedId
+      ? players.find(
+          p =>
+            p.id ===
+            savedId
+        )
+      : null;
+
+  if (player) {
+    const r =
       await SB
         .from('players')
-        .select('id')
+        .update({
+          name,
+
+          skill,
+
+          skill_score:
+            SKILLS[
+              skill
+            ],
+
+          active:
+            true
+        })
         .eq(
-          'user_id',
-          session.user.id
-        )
-        .maybeSingle()
-    ).data;
+          'id',
+          player.id
+        );
 
-  const payload = {
-    user_id:
-      session.user.id,
+    if (r.error) {
+      toast(
+        r.error.message
+      );
 
-    name,
+      return;
+    }
 
-    skill_level:
-      skill,
-
-    skill_score:
-      SKILLS[skill],
-
-    active:
-      true
-  };
-
-  const r =
-    existing
-      ? await SB
-          .from(
-            'players'
-          )
-          .update(
-            payload
-          )
-          .eq(
-            'id',
-            existing.id
-          )
-      : await SB
-          .from(
-            'players'
-          )
-          .insert(
-            payload
-          );
-
-  if (r.error) {
-    toast(
-      r.error.message
+    localStorage.setItem(
+      adminPlayerStorageKey(),
+      player.id
     );
   } else {
-    toast(
-      'Seu cadastro de jogador foi salvo.'
+    const r =
+      await SB
+        .from('players')
+        .insert({
+          name,
+
+          skill,
+
+          skill_score:
+            SKILLS[
+              skill
+            ],
+
+          active:
+            true
+        })
+        .select()
+        .single();
+
+    if (r.error) {
+      toast(
+        r.error.message
+      );
+
+      return;
+    }
+
+    localStorage.setItem(
+      adminPlayerStorageKey(),
+      r.data.id
     );
-
-    await loadAdmin();
-
-    renderSettings();
   }
+
+  toast(
+    'Seu cadastro de jogador foi salvo.'
+  );
+
+  await loadAdmin();
+
+  renderSettings();
 }
 
 
@@ -3732,39 +5651,176 @@ async function saveMyPlayer(e) {
    PLAYER
 ========================================================= */
 
-async function loadPlayer(
-  silent = false
-) {
-  const r =
-    await SB.rpc(
-      'get_player_view',
-      {
-        p_access_token:
-          playerToken
-      }
+async function loadPlayer() {
+  if (!playerToken) {
+    setMode(
+      'landing'
     );
-
-  if (r.error) {
-    if (!silent) {
-      setMode(
-        'landing'
-      );
-
-      toast(
-        'Link de jogador inválido ou expirado.'
-      );
-    }
 
     return false;
   }
 
-  playerData =
-    r.data;
+  const result =
+    await SB
+      .from('players')
+      .select('*')
+      .eq(
+        'token',
+        playerToken
+      )
+      .eq(
+        'active',
+        true
+      )
+      .maybeSingle();
 
-  localStorage.setItem(
-    'volei_player_token',
-    playerToken
-  );
+  if (
+    result.error ||
+    !result.data
+  ) {
+    playerData =
+      null;
+
+    setMode(
+      'landing'
+    );
+
+    toast(
+      'Link de jogador inválido ou jogador inativo.'
+    );
+
+    return false;
+  }
+
+  const player =
+    result.data;
+
+  const today =
+    todayKey();
+
+  const gameResult =
+    await SB
+      .from('games')
+      .select('*')
+      .gte(
+        'game_date',
+        today
+      )
+      .order(
+        'game_date',
+        {
+          ascending:
+            true
+        }
+      )
+      .limit(1)
+      .maybeSingle();
+
+  const game =
+    gameResult.data ||
+    null;
+
+  let teams = [];
+
+  if (game) {
+    const teamRows =
+      (
+        await SB
+          .from('teams')
+          .select(
+            'id,name,total_skill'
+          )
+          .eq(
+            'game_id',
+            game.id
+          )
+          .order(
+            'created_at'
+          )
+      ).data || [];
+
+    if (teamRows.length) {
+      const members =
+        (
+          await SB
+            .from(
+              'team_members'
+            )
+            .select(
+              'team_id,player_id'
+            )
+            .in(
+              'team_id',
+              teamRows.map(
+                t =>
+                  t.id
+              )
+            )
+        ).data || [];
+
+      teams =
+        teamRows.map(
+          team => ({
+            ...team,
+
+            members:
+              members
+                .filter(
+                  m =>
+                    m.team_id ===
+                    team.id
+                )
+                .map(
+                  m =>
+                    players.find(
+                      p =>
+                        p.id ===
+                        m.player_id
+                    )
+                )
+                .filter(Boolean)
+          })
+        );
+    }
+  }
+
+  const varResult =
+    await SB
+      .from(
+        'var_links'
+      )
+      .select('*')
+      .order(
+        'created_at',
+        {
+          ascending:
+            false
+        }
+      );
+
+  const settingResult =
+    await SB
+      .from(
+        'group_settings'
+      )
+      .select('*')
+      .eq(
+        'id',
+        true
+      )
+      .single();
+
+  playerData = {
+    player,
+    game,
+    teams,
+    var:
+      varResult.data ||
+      [],
+    settings:
+      settingResult.data ||
+      {}
+  };
 
   setMode(
     'player'
@@ -3780,138 +5836,101 @@ function renderPlayer() {
   const d =
     playerData;
 
+  if (!d) {
+    return;
+  }
+
   const p =
     d.player;
 
-  $('playerWelcome')
-    .textContent =
-    `Olá, ${p.name}!`;
+  if ($('playerWelcome')) {
+    $('playerWelcome').textContent =
+      `Olá, ${p.name}!`;
+  }
 
-  $('playerSkill')
-    .textContent =
-    `Nível: ${
-      SKILL_LABEL[
-        p.skill_level
-      ]
-    }`;
+  if ($('playerSkill')) {
+    $('playerSkill').textContent =
+      `Nível: ${
+        SKILL_LABEL[
+          p.skill
+        ] || p.skill
+      }`;
+  }
 
-  $('playerGame')
-    .innerHTML =
-    d.game
-      ? `
-        <b>
-          Próximo jogo:
-          ${dateBR(
-            d.game.game_date
-          )}
-        </b>
+  if ($('playerGame')) {
+    $('playerGame').innerHTML =
+      d.game
+        ? `
+          <b>
+            Próximo jogo:
+            ${dateBR(
+              d.game.game_date
+            )}
+          </b>
 
-        <br>
+          <br>
 
-        <span class="muted">
-          ${
-            d.game.teams_count
-          } times
-          ·
-          ${esc(
-            d.game.notes ||
-              ''
-          )}
-        </span>
-      `
-      : 'Nenhum jogo cadastrado ainda.';
+          <span class="muted">
+            ${d.game.teams_count}
+            times
+            ${
+              d.game.notes
+                ? ' · ' +
+                  esc(
+                    d.game.notes
+                  )
+                : ''
+            }
+          </span>
+        `
+        : `
+          Nenhum jogo cadastrado ainda.
+        `;
+  }
 
   const myTeam =
     (
       d.teams ||
       []
     ).find(
-      t =>
+      team =>
         (
-          t.members ||
+          team.members ||
           []
         ).some(
-          m =>
-            m.id ===
+          member =>
+            member.id ===
             p.id
         )
     );
 
-  $('myTeam')
-    .innerHTML =
-    myTeam
-      ? `
-        <div class="team">
-
-          <h3>
-            Seu time:
-            ${myTeam.team_no}
-          </h3>
-
-          ${
-            myTeam.members
-              .map(
-                m => `
-                  <div class="person">
-                    ${esc(
-                      m.name
-                    )}
-
-                    <span>
-                      ${
-                        SKILL_LABEL[
-                          m.skill_level
-                        ]
-                      }
-                    </span>
-                  </div>
-                `
-              )
-              .join('')
-          }
-
-        </div>
-      `
-      : `
-        <div class="notice">
-          Seu time ainda não foi sorteado.
-        </div>
-      `;
-
-  $('playerTeams')
-    .innerHTML =
-    (
-      d.teams ||
-      []
-    )
-      .map(
-        t => `
+  if ($('myTeam')) {
+    $('myTeam').innerHTML =
+      myTeam
+        ? `
           <div class="team">
 
             <h3>
-              Time ${t.team_no}
-
-              <small>
-                ${
-                  t.total_skill
-                } pontos
-              </small>
+              Seu time:
+              ${esc(
+                myTeam.name
+              )}
             </h3>
 
             ${
-              t.members
+              myTeam.members
                 .map(
-                  m => `
+                  member => `
                     <div class="person">
 
                       ${esc(
-                        m.name
+                        member.name
                       )}
 
                       <span>
                         ${
                           SKILL_LABEL[
-                            m.skill_level
+                            member.skill
                           ]
                         }
                       </span>
@@ -3924,93 +5943,156 @@ function renderPlayer() {
 
           </div>
         `
-      )
-      .join('') ||
-    `
-      <div class="notice">
-        Nenhum time sorteado.
-      </div>
-    `;
-
-  $('playerVar')
-    .innerHTML =
-    (
-      d.var ||
-      []
-    )
-      .map(
-        v => `
-          <div class="mediaRow">
-
-            <div>
-              <b>
-                ${esc(
-                  v.title
-                )}
-              </b>
-
-              <small>
-                ${dateBR(
-                  v.game_date
-                )}
-              </small>
-            </div>
-
-            <a
-              target="_blank"
-              href="${esc(
-                v.url
-              )}"
-            >
-              Assistir
-            </a>
-
+        : `
+          <div class="notice">
+            Seu time ainda não foi sorteado.
           </div>
-        `
+        `;
+  }
+
+  if ($('playerTeams')) {
+    $('playerTeams').innerHTML =
+      (
+        d.teams ||
+        []
       )
-      .join('') ||
-    `
-      <div class="notice">
-        Nenhum vídeo compartilhado.
-      </div>
-    `;
+        .map(
+          team => `
+            <div class="team">
 
-  $('playerSpotify')
-    .innerHTML =
-    d.settings.spotify_url
-      ? `
-        <a
-          class="primaryLink"
-          target="_blank"
-          href="${esc(
-            d.settings.spotify_url
-          )}"
-        >
-          🎵 Abrir playlist no Spotify
-        </a>
-      `
-      : 'Playlist ainda não cadastrada.';
+              <h3>
+                ${esc(
+                  team.name
+                )}
 
-  $('playerInstagram')
-    .innerHTML =
-    d.settings.instagram_url
-      ? `
-        <a
-          class="primaryLink"
-          target="_blank"
-          href="${esc(
-            d.settings.instagram_url
-          )}"
-        >
-          📸 Instagram do grupo
-        </a>
+                <small>
+                  ${
+                    team.total_skill
+                  } pontos
+                </small>
+              </h3>
+
+              ${
+                team.members
+                  .map(
+                    member => `
+                      <div class="person">
+
+                        ${esc(
+                          member.name
+                        )}
+
+                        <span>
+                          ${
+                            SKILL_LABEL[
+                              member.skill
+                            ]
+                          }
+                        </span>
+
+                      </div>
+                    `
+                  )
+                  .join('')
+              }
+
+            </div>
+          `
+        )
+        .join('') ||
       `
-      : '';
+        <div class="notice">
+          Nenhum time sorteado.
+        </div>
+      `;
+  }
+
+  if ($('playerVar')) {
+    $('playerVar').innerHTML =
+      (
+        d.var ||
+        []
+      )
+        .map(
+          v => `
+            <div class="mediaRow">
+
+              <div>
+                <b>
+                  ${esc(
+                    v.title
+                  )}
+                </b>
+
+                <small>
+                  ${dateBR(
+                    v.link_date
+                  )}
+                </small>
+              </div>
+
+              <a
+                target="_blank"
+                href="${esc(
+                  v.url
+                )}"
+              >
+                Assistir
+              </a>
+
+            </div>
+          `
+        )
+        .join('') ||
+      `
+        <div class="notice">
+          Nenhum vídeo compartilhado.
+        </div>
+      `;
+  }
+
+  if ($('playerSpotify')) {
+    $('playerSpotify').innerHTML =
+      d.settings?.spotify_url
+        ? `
+          <a
+            class="primaryLink"
+            target="_blank"
+            href="${esc(
+              d.settings.spotify_url
+            )}"
+          >
+            🎵 Abrir playlist no Spotify
+          </a>
+        `
+        : 'Playlist ainda não cadastrada.';
+  }
+
+  if ($('playerInstagram')) {
+    $('playerInstagram').innerHTML =
+      d.settings?.instagram_url
+        ? `
+          <a
+            class="primaryLink"
+            target="_blank"
+            href="${esc(
+              d.settings.instagram_url
+            )}"
+          >
+            📸 Instagram do grupo
+          </a>
+        `
+        : '';
+  }
 }
 
 
-function copyMyLink() {
-  navigator.clipboard.writeText(
+async function copyMyLink() {
+  if (!playerToken) {
+    return;
+  }
+
+  await navigator.clipboard.writeText(
     playerUrl(
       playerToken
     )
@@ -4023,8 +6105,12 @@ function copyMyLink() {
 
 
 function shareMyLink() {
+  if (!playerToken) {
+    return;
+  }
+
   const text =
-    `🏐 Meu acesso ao 99% INTRIGAS · 1% VÔLEI:\n` +
+    `🏐 Meu acesso ao 99% INTRIGAS · 1% VÔLEI:\n\n` +
     playerUrl(
       playerToken
     );
@@ -4040,50 +6126,96 @@ function shareMyLink() {
 
 
 /* =========================================================
-   CADASTRO
+   CADASTRO DE JOGADOR
 ========================================================= */
 
 async function registerPlayer(e) {
   e.preventDefault();
 
-  const token =
+  const invite =
     $('registerToken')
-      .value;
+      ?.value
+      .trim();
 
   const name =
     $('regName')
-      .value
+      ?.value
       .trim();
 
   const skill =
-    $('regSkill')
-      .value;
+    normalizeSkill(
+      $('regSkill')
+        ?.value
+    );
 
-  if (
-    !name ||
-    !skill
-  ) {
+  if (!invite) {
     toast(
-      'Informe nome e habilidade.'
+      'Link de cadastro inválido.'
     );
 
     return;
   }
 
-  const r =
-    await SB.rpc(
-      'register_player',
-      {
-        p_invite_token:
-          token,
-
-        p_name:
-          name,
-
-        p_skill_level:
-          skill
-      }
+  if (!name) {
+    toast(
+      'Informe seu nome.'
     );
+
+    return;
+  }
+
+  const state =
+    await SB
+      .from('app_state')
+      .select(
+        'invite_token'
+      )
+      .eq(
+        'id',
+        true
+      )
+      .maybeSingle();
+
+  if (
+    state.error ||
+    !state.data ||
+    state.data.invite_token !==
+      invite
+  ) {
+    toast(
+      'Este link de cadastro não é mais válido.'
+    );
+
+    return;
+  }
+
+  const token =
+    crypto.randomUUID()
+      .replace(
+        /-/g,
+        ''
+      );
+
+  const r =
+    await SB
+      .from('players')
+      .insert({
+        name,
+
+        skill,
+
+        skill_score:
+          SKILLS[
+            skill
+          ],
+
+        active:
+          true,
+
+        token
+      })
+      .select()
+      .single();
 
   if (r.error) {
     toast(
@@ -4094,30 +6226,39 @@ async function registerPlayer(e) {
   }
 
   playerToken =
-    r.data.access_token;
+    r.data.token;
 
-  localStorage.setItem(
-    'volei_player_token',
-    playerToken
+  if ($('registerResult')) {
+    $('registerResult')
+      .classList.remove(
+        'hidden'
+      );
+  }
+
+  if ($('myAccessLink')) {
+    $('myAccessLink').value =
+      playerUrl(
+        playerToken
+      );
+  }
+
+  toast(
+    'Cadastro realizado com sucesso!'
   );
-
-  $('registerResult')
-    .classList.remove(
-      'hidden'
-    );
-
-  $('myAccessLink')
-    .value =
-    playerUrl(
-      playerToken
-    );
 }
 
 
-function copyMyAccess() {
-  navigator.clipboard.writeText(
+async function copyMyAccess() {
+  const value =
     $('myAccessLink')
-      .value
+      ?.value;
+
+  if (!value) {
+    return;
+  }
+
+  await navigator.clipboard.writeText(
+    value
   );
 
   toast(
@@ -4127,9 +6268,14 @@ function copyMyAccess() {
 
 
 function openMyAccess() {
-  location.href =
+  const value =
     $('myAccessLink')
-      .value;
+      ?.value;
+
+  if (value) {
+    location.href =
+      value;
+  }
 }
 
 
@@ -4140,25 +6286,56 @@ function openMyAccess() {
 SB.auth.onAuthStateChange(
   async (
     event,
-    s
+    currentSession
   ) => {
+    session =
+      currentSession;
+
     if (
       event ===
       'SIGNED_OUT'
     ) {
-      session = null;
       admin = false;
+      session = null;
 
-      setMode(
-        'landing'
-      );
+      if (
+        activeMode !==
+        'player'
+      ) {
+        setMode(
+          'landing'
+        );
+      }
     }
   }
 );
 
 
 /* =========================================================
-   LOAD
+   COMPATIBILIDADE COM BOTÕES DO INDEX
+========================================================= */
+
+function openAdmin() {
+  goAdminLogin();
+}
+
+function showAdminLogin() {
+  goAdminLogin();
+}
+
+function backHome() {
+  setMode(
+    'landing'
+  );
+}
+
+function logoutPlayer() {
+  exitPlayer();
+}
+
+
+/* =========================================================
+   INICIALIZAÇÃO
 ========================================================= */
 
 window.addEventListener(
