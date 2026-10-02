@@ -4089,7 +4089,6 @@ function unitCashDescription(
 
 
 async function syncUnitCash(
-async function syncUnitCash(
   gameId,
   playerId,
   amount
