@@ -6168,127 +6168,53 @@ function shareMyLink() {
 async function registerPlayer(e) {
   e.preventDefault();
 
-  const invite =
-    $('registerToken')
-      ?.value
-      .trim() || '';
-
-  const name =
-    $('regName')
-      ?.value
-      .trim() || '';
-
-  const skill =
-    normalizeSkill(
-      $('regSkill')
-        ?.value
-    );
+  const invite = $('registerToken')?.value.trim() || '';
+  const name = $('regName')?.value.trim() || '';
+  const skill = normalizeSkill($('regSkill')?.value);
 
   if (!invite) {
-    toast(
-      'Link de cadastro inválido.'
-    );
+    toast('Link de cadastro inválido.');
     return;
   }
 
   if (!name) {
-    toast(
-      'Informe seu nome.'
-    );
+    toast('Informe seu nome.');
     return;
   }
 
-  const state =
-    await SB
-      .from('app_state')
-      .select('invite_token')
-      .eq(
-        'id',
-        'true'
-      )
-      .maybeSingle();
-
-  if (state.error) {
-    console.error(
-      'Erro ao validar convite:',
-      state.error
-    );
-
-    toast(
-      'Não foi possível validar o link de cadastro.'
-    );
-
-    return;
-  }
-
-  if (
-    !state.data ||
-    state.data.invite_token !== invite
-  ) {
-    toast(
-      'Este link de cadastro não é mais válido.'
-    );
-
-    return;
-  }
-
-  const accessToken =
-    crypto.randomUUID();
-
-  const r =
-    await SB
-      .from('players')
-      .insert({
-        name: name,
-
-        skill_level: skill,
-
-        skill_score:
-          SKILLS[skill],
-
-        access_token:
-          accessToken,
-
-        active: true
-      })
-      .select()
-      .single();
+  const r = await SB.rpc('register_player_by_link', {
+    p_invite_token: invite,
+    p_name: name,
+    p_skill_level: skill
+  });
 
   if (r.error) {
-    console.error(
-      'Erro ao cadastrar jogador:',
-      r.error
-    );
+    console.error('Erro ao cadastrar jogador:', r.error);
+
+    const msg = r.error.message || '';
 
     toast(
-      r.error.message
+      msg.includes('link_de_cadastro_invalido') ? 'Este link de cadastro não é mais válido.' :
+      msg.includes('nome_invalido') ? 'Informe um nome com 2 a 80 letras.' :
+      msg.includes('habilidade_invalida') ? 'Escolha uma habilidade válida.' :
+      msg
     );
 
     return;
   }
 
-  playerToken =
-    r.data.access_token;
+  playerToken = r.data.access_token;
 
   if ($('registerResult')) {
-    $('registerResult')
-      .classList.remove(
-        'hidden'
-      );
+    $('registerResult').classList.remove('hidden');
   }
 
   if ($('myAccessLink')) {
-    $('myAccessLink').value =
-      playerUrl(
-        r.data.access_token
-      );
+    $('myAccessLink').value = playerUrl(r.data.access_token);
   }
 
-  toast(
-    'Cadastro realizado com sucesso!'
-  );
+  toast('Cadastro realizado com sucesso!');
 }
-
 function openMyAccess() {
   const value =
     $('myAccessLink')
