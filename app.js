@@ -1025,146 +1025,300 @@ async function deletePlayer(id) {
     );
 
   if (!player) {
-    return;
-  }
-
-  if (
-    !confirm(
-      `Excluir definitivamente ${player.name}?\n\nOs registros financeiros serão preservados no histórico.`
-    )
-  ) {
-    return;
-  }
-
-  /* Preserva mensalidades no histórico */
-  const monthly =
-    (
-      await SB
-        .from(
-          'monthly_payments'
-        )
-        .select('*')
-        .eq(
-          'player_id',
-          id
-        )
-    ).data || [];
-
-  for (
-    const payment of monthly
-  ) {
-    await SB
-      .from(
-        'payment_history'
-      )
-      .insert({
-        payment_date:
-          payment.paid_at
-            ? payment.paid_at.slice(
-                0,
-                10
-              )
-            : todayKey(),
-
-        player_id:
-          id,
-
-        player_name:
-          player.name,
-
-        payment_type:
-          'mensal',
-
-        competence:
-          payment.competence,
-
-        amount:
-          payment.amount,
-
-        notes:
-          'Preservado antes da exclusão do jogador'
-      });
-  }
-
-  /* Preserva pagamentos individuais */
-  const units =
-    (
-      await SB
-        .from(
-          'unit_payments'
-        )
-        .select('*')
-        .eq(
-          'player_id',
-          id
-        )
-    ).data || [];
-
-  for (
-    const payment of units
-  ) {
-    const game =
-      allGames.find(
-        g =>
-          g.id ===
-          payment.game_id
-      );
-
-    await SB
-      .from(
-        'payment_history'
-      )
-      .insert({
-        payment_date:
-          game?.game_date ||
-          todayKey(),
-
-        player_id:
-          id,
-
-        player_name:
-          player.name,
-
-        payment_type:
-          'individual',
-
-        game_id:
-          payment.game_id,
-
-        amount:
-          payment.amount,
-
-        notes:
-          'Preservado antes da exclusão do jogador'
-      });
-  }
-
-  const r =
-    await SB
-      .from('players')
-      .delete()
-      .eq(
-        'id',
-        id
-      );
-
-  if (r.error) {
     toast(
-      r.error.message
+      'Jogador não encontrado.'
     );
 
     return;
   }
 
-  toast(
-    'Jogador excluído. Histórico financeiro preservado.'
-  );
+  if (
+    !confirm(
+      `Excluir definitivamente ${player.name}?\n\n` +
+      `Os registros financeiros serão preservados no histórico.\n\n` +
+      `Esta ação não poderá ser desfeita.`
+    )
+  ) {
+    return;
+  }
 
-  await loadAdmin();
+  try {
+    /* =====================================================
+       1. PRESERVAR MENSALIDADES NO HISTÓRICO
+    ===================================================== */
 
-  renderPlayers();
+    const monthlyResult =
+      await SB
+        .from('monthly_payments')
+        .select('*')
+        .eq(
+          'player_id',
+          id
+        );
+
+    if (monthlyResult.error) {
+      throw monthlyResult.error;
+    }
+
+    const monthly =
+      monthlyResult.data || [];
+
+    for (
+      const payment of monthly
+    ) {
+      const historyResult =
+        await SB
+          .from('payment_history')
+          .insert({
+            payment_date:
+              payment.paid_at
+                ? payment.paid_at.slice(
+                    0,
+                    10
+                  )
+                : todayKey(),
+
+            /*
+             * IMPORTANTE:
+             * Não mantemos player_id porque
+             * o jogador será excluído.
+             */
+            player_id:
+              null,
+
+            player_name:
+              player.name,
+
+            payment_type:
+              'mensal',
+
+            competence:
+              payment.competence,
+
+            amount:
+              payment.amount,
+
+            notes:
+              'Preservado antes da exclusão do jogador'
+          });
+
+      if (historyResult.error) {
+        throw historyResult.error;
+      }
+    }
+
+
+    /* =====================================================
+       2. PRESERVAR PAGAMENTOS INDIVIDUAIS
+    ===================================================== */
+
+    const unitsResult =
+      await SB
+        .from('unit_payments')
+        .select('*')
+        .eq(
+          'player_id',
+          id
+        );
+
+    if (unitsResult.error) {
+      throw unitsResult.error;
+    }
+
+    const units =
+      unitsResult.data || [];
+
+    for (
+      const payment of units
+    ) {
+      const game =
+        allGames.find(
+          g =>
+            g.id ===
+            payment.game_id
+        );
+
+      const historyResult =
+        await SB
+          .from('payment_history')
+          .insert({
+            payment_date:
+              game?.game_date ||
+              todayKey(),
+
+            /*
+             * O histórico não pode depender
+             * do jogador que será excluído.
+             */
+            player_id:
+              null,
+
+            player_name:
+              player.name,
+
+            payment_type:
+              'individual',
+
+            game_id:
+              payment.game_id,
+
+            amount:
+              payment.amount,
+
+            notes:
+              'Preservado antes da exclusão do jogador'
+          });
+
+      if (historyResult.error) {
+        throw historyResult.error;
+      }
+    }
+
+
+    /* =====================================================
+       3. REMOVER MEMBROS DOS TIMES
+    ===================================================== */
+
+    const teamMembersResult =
+      await SB
+        .from('team_members')
+        .delete()
+        .eq(
+          'player_id',
+          id
+        );
+
+    if (
+      teamMembersResult.error
+    ) {
+      throw teamMembersResult.error;
+    }
+
+
+    /* =====================================================
+       4. REMOVER PARTICIPAÇÕES NOS JOGOS
+    ===================================================== */
+
+    const gamePlayersResult =
+      await SB
+        .from('game_players')
+        .delete()
+        .eq(
+          'player_id',
+          id
+        );
+
+    if (
+      gamePlayersResult.error
+    ) {
+      throw gamePlayersResult.error;
+    }
+
+
+    /* =====================================================
+       5. REMOVER PAGAMENTOS MENSAIS
+    ===================================================== */
+
+    const monthlyDeleteResult =
+      await SB
+        .from('monthly_payments')
+        .delete()
+        .eq(
+          'player_id',
+          id
+        );
+
+    if (
+      monthlyDeleteResult.error
+    ) {
+      throw monthlyDeleteResult.error;
+    }
+
+
+    /* =====================================================
+       6. REMOVER PAGAMENTOS INDIVIDUAIS
+    ===================================================== */
+
+    const unitDeleteResult =
+      await SB
+        .from('unit_payments')
+        .delete()
+        .eq(
+          'player_id',
+          id
+        );
+
+    if (
+      unitDeleteResult.error
+    ) {
+      throw unitDeleteResult.error;
+    }
+
+
+    /* =====================================================
+       7. REMOVER O JOGADOR
+    ===================================================== */
+
+    const playerDeleteResult =
+      await SB
+        .from('players')
+        .delete()
+        .eq(
+          'id',
+          id
+        );
+
+    if (
+      playerDeleteResult.error
+    ) {
+      throw playerDeleteResult.error;
+    }
+
+
+    /* =====================================================
+       8. ATUALIZAR DADOS DO ADMIN
+    ===================================================== */
+
+    const savedAdminPlayerId =
+      localStorage.getItem(
+        adminPlayerStorageKey()
+      );
+
+    if (
+      savedAdminPlayerId ===
+      id
+    ) {
+      localStorage.removeItem(
+        adminPlayerStorageKey()
+      );
+    }
+
+
+    /* =====================================================
+       9. RECARREGAR DADOS
+    ===================================================== */
+
+    await loadAdmin();
+
+    await renderPlayers();
+
+
+    toast(
+      'Jogador excluído. Histórico financeiro preservado.'
+    );
+
+  } catch (error) {
+    console.error(
+      'Erro ao excluir jogador:',
+      error
+    );
+
+    toast(
+      error?.message ||
+      'Não foi possível excluir o jogador.'
+    );
+  }
 }
-
 
 /* =========================================================
    JOGOS
