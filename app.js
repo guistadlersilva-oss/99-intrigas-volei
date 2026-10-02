@@ -4872,123 +4872,74 @@ async function addCashEntry(e) {
 
   e.preventDefault();
 
-
   const date =
-    $('cashDate')
-      ?.value ||
+    $('cashDate')?.value ||
     todayKey();
 
-
   const type =
-    $('cashType')
-      ?.value ||
+    $('cashType')?.value ||
     'entrada';
 
-
   const category =
-    $('cashCategory')
-      ?.value ||
+    $('cashCategory')?.value ||
     'Outro';
 
-
   const name =
-    $('cashName')
-      ?.value
-      .trim();
-
+    $('cashName')?.value.trim() || '';
 
   const amount =
     Number(
-      $('cashAmount')
-        ?.value
+      $('cashAmount')?.value
     );
-
 
   const observation =
-    $('cashDescription')
-      ?.value
-      .trim();
-
+    $('cashDescription')?.value.trim() || '';
 
   if (!date) {
-
-    toast(
-      'Informe a data.'
-    );
-
+    toast('Informe a data.');
     return;
   }
 
-
   if (
-    type ===
-    'entrada' &&
+    type === 'entrada' &&
     !name
   ) {
-
     toast(
       'Informe o nome de quem realizou o pagamento.'
     );
-
     return;
   }
-
 
   if (
-    !Number.isFinite(
-      amount
-    ) ||
+    !Number.isFinite(amount) ||
     amount <= 0
   ) {
-
-    toast(
-      'Informe um valor válido.'
-    );
-
+    toast('Informe um valor válido.');
     return;
   }
-
 
   if (!observation) {
-
-    toast(
-      'Informe uma observação.'
-    );
-
+    toast('Informe uma observação.');
     return;
   }
-
 
   const description =
     type === 'entrada'
       ? `${name} | ${observation}`
       : observation;
 
-
   const result =
     await SB
-      .from(
-        'cash_entries'
-      )
+      .from('cash_entries')
       .insert({
-
-        entry_date:
-          date,
-
-        type,
-
-        category,
-
-        description,
-
-        amount
-
+        entry_date: date,
+        type: type,
+        category: category,
+        description: description,
+        amount: amount
       });
 
-
-  if (
-    result.error
-  ) {
+  if (result.error) {
 
     console.error(
       'Erro ao registrar movimentação:',
@@ -5002,32 +4953,36 @@ async function addCashEntry(e) {
     return;
   }
 
-
-  $('cashForm')
-    ?.reset();
-
+  if ($('cashForm')) {
+    $('cashForm').reset();
+  }
 
   if ($('cashDate')) {
-
     $('cashDate').value =
       todayKey();
-
   }
-
 
   if ($('cashType')) {
-
     $('cashType').value =
       'entrada';
-
   }
 
+  toggleCashNameField();
 
- function toggleCashNameField() {
+  toast(
+    type === 'entrada'
+      ? 'Entrada registrada.'
+      : 'Saída registrada.'
+  );
+
+  await renderCash();
+}
+
+
+function toggleCashNameField() {
 
   const type =
-    $('cashType')
-      ?.value;
+    $('cashType')?.value;
 
   const field =
     $('cashNameField');
@@ -5039,204 +4994,25 @@ async function addCashEntry(e) {
     return;
   }
 
-  if (
-    type ===
-    'entrada'
-  ) {
+  if (type === 'entrada') {
 
-    field.style.display =
-      '';
+    field.style.display = '';
 
     if (input) {
-      input.required =
-        true;
+      input.required = true;
     }
 
   } else {
 
-    field.style.display =
-      'none';
+    field.style.display = 'none';
 
     if (input) {
-      input.required =
-        false;
-
-      input.value =
-        '';
+      input.required = false;
+      input.value = '';
     }
 
   }
 }
-
-
-async function addCashEntry(e) {
-
-  e.preventDefault();
-
-
-  const date =
-    $('cashDate')
-      ?.value ||
-    todayKey();
-
-
-  const type =
-    $('cashType')
-      ?.value ||
-    'entrada';
-
-
-  const category =
-    $('cashCategory')
-      ?.value ||
-    'Outro';
-
-
-  const name =
-    $('cashName')
-      ?.value
-      .trim();
-
-
-  const amount =
-    Number(
-      $('cashAmount')
-        ?.value
-    );
-
-
-  const observation =
-    $('cashDescription')
-      ?.value
-      .trim();
-
-
-  if (!date) {
-
-    toast(
-      'Informe a data.'
-    );
-
-    return;
-  }
-
-
-  if (
-    type ===
-    'entrada' &&
-    !name
-  ) {
-
-    toast(
-      'Informe o nome de quem realizou o pagamento.'
-    );
-
-    return;
-  }
-
-
-  if (
-    !Number.isFinite(
-      amount
-    ) ||
-    amount <= 0
-  ) {
-
-    toast(
-      'Informe um valor válido.'
-    );
-
-    return;
-  }
-
-
-  if (!observation) {
-
-    toast(
-      'Informe uma observação.'
-    );
-
-    return;
-  }
-
-
-  const description =
-    type === 'entrada'
-      ? `${name} | ${observation}`
-      : observation;
-
-
-  const result =
-    await SB
-      .from(
-        'cash_entries'
-      )
-      .insert({
-
-        entry_date:
-          date,
-
-        type,
-
-        category,
-
-        description,
-
-        amount
-
-      });
-
-
-  if (
-    result.error
-  ) {
-
-    console.error(
-      'Erro ao registrar movimentação:',
-      result.error
-    );
-
-    toast(
-      result.error.message
-    );
-
-    return;
-  }
-
-
-  $('cashForm')
-    ?.reset();
-
-
-  if ($('cashDate')) {
-
-    $('cashDate').value =
-      todayKey();
-
-  }
-
-
-  if ($('cashType')) {
-
-    $('cashType').value =
-      'entrada';
-
-  }
-
-
-  toggleCashNameField();
-
-
-  toast(
-    type === 'entrada'
-      ? 'Entrada registrada.'
-      : 'Saída registrada.'
-  );
-
-
-  await renderCash();
-}
-
 async function renderCash() {
 
   const [state, result] =
