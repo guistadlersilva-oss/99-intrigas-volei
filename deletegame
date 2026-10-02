@@ -3909,14 +3909,23 @@ async function syncUnitCash(
   playerId,
   amount
 ) {
+  const value =
+    Number(amount);
+
   if (
-    !Number.isFinite(
-      amount
-    ) ||
-    amount <= 0
+    !Number.isFinite(value) ||
+    value <= 0
   ) {
+    toast(
+      'Valor do pagamento inválido.'
+    );
+
     return;
   }
+
+  /* =====================================================
+     BUSCAR JOGADOR E JOGO
+  ===================================================== */
 
   const player =
     players.find(
@@ -3925,6 +3934,14 @@ async function syncUnitCash(
         playerId
     );
 
+  if (!player) {
+    toast(
+      'Jogador não encontrado.'
+    );
+
+    return;
+  }
+
   const game =
     allGames.find(
       g =>
@@ -3932,29 +3949,58 @@ async function syncUnitCash(
         gameId
     );
 
+  if (!game) {
+    toast(
+      'Jogo não encontrado.'
+    );
+
+    return;
+  }
+
+
+  /* =====================================================
+     DESCRIÇÃO ÚNICA DO LANÇAMENTO
+  ===================================================== */
+
   const description =
     unitCashDescription(
       gameId,
       playerId
     );
 
-  const existing =
-    (
-      await SB
-        .from(
-          'cash_entries'
-        )
-        .select('id')
-        .eq(
-          'description',
-          description
-        )
-        .maybeSingle()
-    ).data;
+
+  /* =====================================================
+     VERIFICAR SE JÁ EXISTE NO CAIXA
+  ===================================================== */
+
+  const existingResult =
+    await SB
+      .from('cash_entries')
+      .select('*')
+      .eq(
+        'description',
+        description
+      )
+      .maybeSingle();
+
+  if (
+    existingResult.error
+  ) {
+    toast(
+      existingResult.error.message
+    );
+
+    return;
+  }
+
+
+  /* =====================================================
+     DADOS DO LANÇAMENTO
+  ===================================================== */
 
   const payload = {
     entry_date:
-      game?.game_date ||
+      game.game_date ||
       todayKey(),
 
     type:
@@ -3963,31 +4009,66 @@ async function syncUnitCash(
     category:
       'Pagamento individual',
 
-    description,
+    description:
+      description,
 
-    amount
+    amount:
+      value
   };
 
-  if (existing) {
-    await SB
-      .from(
-        'cash_entries'
-      )
-      .update(
-        payload
-      )
-      .eq(
-        'id',
-        existing.id
+
+  /* =====================================================
+     ATUALIZAR LANÇAMENTO EXISTENTE
+  ===================================================== */
+
+  if (
+    existingResult.data
+  ) {
+
+    const updateResult =
+      await SB
+        .from('cash_entries')
+        .update(
+          payload
+        )
+        .eq(
+          'id',
+          existingResult.data.id
+        );
+
+    if (
+      updateResult.error
+    ) {
+      toast(
+        updateResult.error.message
       );
-  } else {
+
+      return;
+    }
+
+    return;
+  }
+
+
+  /* =====================================================
+     CRIAR NOVO LANÇAMENTO
+  ===================================================== */
+
+  const insertResult =
     await SB
-      .from(
-        'cash_entries'
-      )
+      .from('cash_entries')
       .insert(
         payload
       );
+
+  if (
+    insertResult.error
+  ) {
+    toast(
+      insertResult.error.message
+    );
+
+    return;
   }
 }
 
