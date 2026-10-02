@@ -2843,35 +2843,6 @@ async function sendTeamsWhatsApp() {
 }
 
 
-
-function removeLegacyPaymentUI() {
-  const ids = [
-    'unitAdvancedControls',
-    'paymentAdvancedControls',
-    'historyTableWrap'
-  ];
-
-  ids.forEach(id => {
-    document.getElementById(id)?.closest('.card, form, .tableWrap')?.remove();
-    document.getElementById(id)?.remove();
-  });
-
-  // Remove a standalone legacy historical-payment form, when present.
-  [
-    'historyDate',
-    'historyName',
-    'historyAmount',
-    'historyType',
-    'historyGame',
-    'historyAlreadyInCash'
-  ].forEach(id => {
-    const el = document.getElementById(id);
-    if (el) {
-      el.closest('.card, form')?.remove();
-    }
-  });
-}
-
 /* =========================================================
    PAGAMENTOS
 ========================================================= */
@@ -3085,7 +3056,6 @@ async function changePaymentGame() {
 
 async function renderPayments() {
 
-  removeLegacyPaymentUI();
   ensurePaymentControls();
 
   if (
@@ -3469,33 +3439,554 @@ async function removeUnit() {
 
 /* =========================================================
    HISTÓRICO DE PAGAMENTOS
-   A interface histórica foi removida.
-   Os registros existentes em payment_history permanecem no banco.
 ========================================================= */
 
 async function addHistoricalPayment() {
-  removeLegacyPaymentUI();
-  toast('O histórico de pagamentos não é mais lançado por esta tela. Use o Caixa.');
+  const paymentDate =
+    $('historyDate')
+      ?.value ||
+    todayKey();
+
+  const playerName =
+    $('historyName')
+      ?.value
+      .trim();
+
+  const amount =
+    Number(
+      $('historyAmount')
+        ?.value
+    );
+
+  const type =
+    $('historyType')
+      ?.value ||
+    'individual';
+
+  const gameId =
+    $('historyGame')
+      ?.value ||
+    null;
+
+  const alreadyInCash =
+    !!$(
+      'historyAlreadyInCash'
+    )?.checked;
+
+  if (!playerName) {
+    toast(
+      'Informe o nome do pagador.'
+    );
+
+    return;
+  }
+
+  if (
+    !Number.isFinite(
+      amount
+    ) ||
+    amount <= 0
+  ) {
+    toast(
+      'Informe um valor válido.'
+    );
+
+    return;
+  }
+
+  const linked =
+    players.find(
+      p =>
+        p.name
+          .trim()
+          .toLowerCase() ===
+        playerName
+          .toLowerCase()
+    );
+
+  const r =
+    await SB
+      .from(
+        'payment_history'
+      )
+      .insert({
+        payment_date:
+          paymentDate,
+
+        player_id:
+          linked?.id ||
+          null,
+
+        player_name:
+          playerName,
+
+        payment_type:
+          type,
+
+        game_id:
+          gameId,
+
+        competence:
+          type === 'mensal'
+            ? `${paymentDate.slice(
+                0,
+                7
+              )}-01`
+            : null,
+
+        amount,
+
+        notes:
+          alreadyInCash
+            ? 'Pagamento histórico já incluído no saldo inicial'
+            : 'Pagamento histórico'
+      })
+      .select()
+      .single();
+
+  if (r.error) {
+    toast(
+      r.error.message
+    );
+
+    return;
+  }
+
+  /*
+    Se o valor NÃO estiver no saldo inicial,
+    adicionamos a entrada ao caixa.
+  */
+  if (!alreadyInCash) {
+    await SB
+      .from(
+        'cash_entries'
+      )
+      .insert({
+        entry_date:
+          paymentDate,
+
+        type:
+          'entrada',
+
+        category:
+          type === 'mensal'
+            ? 'Mensalidade'
+            : 'Pagamento individual',
+
+        description:
+          `Histórico | ${playerName} | pagamento:${r.data.id}`,
+
+        amount
+      });
+  }
+
+  if ($('historyName')) {
+    $('historyName').value =
+      '';
+  }
+
+  if ($('historyAmount')) {
+    $('historyAmount').value =
+      '';
+  }
+
+  toast(
+    'Pagamento histórico salvo.'
+  );
+
+  await renderPaymentHistory();
 }
+
 
 async function renderPaymentHistory() {
-  removeLegacyPaymentUI();
+  const wrap =
+    $('historyTableWrap');
+
+  if (!wrap) {
+    return;
+  }
+
+  const history =
+    (
+      await SB
+        .from(
+          'payment_history'
+        )
+        .select('*')
+        .order(
+          'payment_date',
+          {
+            ascending:
+              false
+          }
+        )
+        .limit(100)
+    ).data || [];
+
+  wrap.innerHTML = `
+    <div class="tableWrap">
+
+      <table>
+
+        <thead>
+          <tr>
+            <th>Data</th>
+            <th>Nome</th>
+            <th>Tipo</th>
+            <th>Jogo</th>
+            <th>Valor</th>
+            <th>Ações</th>
+          </tr>
+        </thead>
+
+        <tbody>
+
+          ${
+            history.length
+              ? history
+                  .map(
+                    h => {
+                      const game =
+                        allGames.find(
+                          g =>
+                            g.id ===
+                            h.game_id
+                        );
+
+                      return `
+                        <tr>
+
+                          <td>
+                            ${dateBR(
+                              h.payment_date
+                            )}
+                          </td>
+
+                          <td>
+                            ${esc(
+                              h.player_name
+                            )}
+                          </td>
+
+                          <td>
+                            ${
+                              h.payment_type ===
+                              'mensal'
+                                ? 'Mensal'
+                                : 'Individual'
+                            }
+                          </td>
+
+                          <td>
+                            ${
+                              game
+                                ? dateBR(
+                                    game.game_date
+                                  )
+                                : '—'
+                            }
+                          </td>
+
+                          <td>
+                            ${money(
+                              h.amount
+                            )}
+                          </td>
+
+                          <td>
+
+                            <button
+                              onclick="editHistoricalPayment('${h.id}')"
+                            >
+                              Editar
+                            </button>
+
+                            <button
+                              onclick="deleteHistoricalPayment('${h.id}')"
+                            >
+                              🗑️
+                            </button>
+
+                            ${
+                              !h.player_id
+                                ? `
+                                  <button
+                                    onclick="linkHistoricalPayment('${h.id}')"
+                                  >
+                                    Vincular
+                                  </button>
+                                `
+                                : ''
+                            }
+
+                          </td>
+
+                        </tr>
+                      `;
+                    }
+                  )
+                  .join('')
+              : `
+                  <tr>
+                    <td colspan="6">
+                      Nenhum histórico cadastrado.
+                    </td>
+                  </tr>
+                `
+          }
+
+        </tbody>
+
+      </table>
+
+    </div>
+  `;
 }
 
-async function editHistoricalPayment() {
-  removeLegacyPaymentUI();
-  toast('A edição do histórico antigo não é feita nesta tela.');
+
+async function editHistoricalPayment(
+  id
+) {
+  const result =
+    await SB
+      .from(
+        'payment_history'
+      )
+      .select('*')
+      .eq(
+        'id',
+        id
+      )
+      .single();
+
+  if (result.error) {
+    toast(
+      result.error.message
+    );
+
+    return;
+  }
+
+  const h =
+    result.data;
+
+  const name =
+    prompt(
+      'Nome:',
+      h.player_name
+    );
+
+  if (name === null) {
+    return;
+  }
+
+  const amount =
+    Number(
+      prompt(
+        'Valor:',
+        h.amount
+      )
+    );
+
+  if (
+    !Number.isFinite(
+      amount
+    ) ||
+    amount <= 0
+  ) {
+    toast(
+      'Valor inválido.'
+    );
+
+    return;
+  }
+
+  const date =
+    prompt(
+      'Data (AAAA-MM-DD):',
+      h.payment_date
+    );
+
+  if (!date) {
+    return;
+  }
+
+  const r =
+    await SB
+      .from(
+        'payment_history'
+      )
+      .update({
+        player_name:
+          name.trim(),
+
+        amount,
+
+        payment_date:
+          date
+      })
+      .eq(
+        'id',
+        id
+      );
+
+  if (r.error) {
+    toast(
+      r.error.message
+    );
+
+    return;
+  }
+
+  toast(
+    'Histórico atualizado.'
+  );
+
+  await renderPaymentHistory();
 }
 
-async function deleteHistoricalPayment() {
-  removeLegacyPaymentUI();
-  toast('Os registros históricos existentes foram preservados.');
+
+async function deleteHistoricalPayment(
+  id
+) {
+  if (
+    !confirm(
+      'Excluir este registro histórico?'
+    )
+  ) {
+    return;
+  }
+
+  const r =
+    await SB
+      .from(
+        'payment_history'
+      )
+      .delete()
+      .eq(
+        'id',
+        id
+      );
+
+  if (r.error) {
+    toast(
+      r.error.message
+    );
+
+    return;
+  }
+
+  await SB
+    .from(
+      'cash_entries'
+    )
+    .delete()
+    .like(
+      'description',
+      `%pagamento:${id}`
+    );
+
+  toast(
+    'Histórico excluído.'
+  );
+
+  await renderPaymentHistory();
 }
 
-async function linkHistoricalPayment() {
-  removeLegacyPaymentUI();
-  toast('O histórico antigo não é alterado por esta tela.');
+
+async function linkHistoricalPayment(
+  id
+) {
+  const result =
+    await SB
+      .from(
+        'payment_history'
+      )
+      .select('*')
+      .eq(
+        'id',
+        id
+      )
+      .single();
+
+  if (result.error) {
+    toast(
+      result.error.message
+    );
+
+    return;
+  }
+
+  const h =
+    result.data;
+
+  const options =
+    players
+      .map(
+        (p, i) =>
+          `${i + 1} - ${p.name}`
+      )
+      .join('\n');
+
+  const answer =
+    prompt(
+      `Vincular "${h.player_name}" a qual jogador?\n\n${options}\n\nDigite o número:`
+    );
+
+  if (answer === null) {
+    return;
+  }
+
+  const index =
+    Number(answer) - 1;
+
+  if (
+    index < 0 ||
+    index >=
+      players.length
+  ) {
+    toast(
+      'Jogador inválido.'
+    );
+
+    return;
+  }
+
+  const player =
+    players[index];
+
+  const r =
+    await SB
+      .from(
+        'payment_history'
+      )
+      .update({
+        player_id:
+          player.id,
+
+        player_name:
+          player.name
+      })
+      .eq(
+        'id',
+        id
+      );
+
+  if (r.error) {
+    toast(
+      r.error.message
+    );
+
+    return;
+  }
+
+  toast(
+    'Histórico vinculado ao jogador.'
+  );
+
+  await renderPaymentHistory();
 }
+
 
 /* =========================================================
    CAIXA
@@ -4003,6 +4494,18 @@ async function renderCash() {
   }
 
 
+  if (state.error) {
+    console.error('Erro ao carregar saldo inicial:', state.error);
+    toast('Erro ao carregar saldo inicial: ' + state.error.message);
+    return;
+  }
+
+  if (result.error) {
+    console.error('Erro ao carregar histórico do caixa:', result.error);
+    toast('Erro ao carregar caixa: ' + result.error.message);
+    return;
+  }
+
   const initial =
     Number(
       state.data?.cash_initial ||
@@ -4361,6 +4864,19 @@ async function renderMedia() {
         }
       );
 
+  if (result.error) {
+    console.error('Erro ao carregar VAR:', result.error);
+    if ($('varAdminList')) {
+      $('varAdminList').innerHTML = `
+        <div class="notice">
+          Erro ao carregar os vídeos: ${esc(result.error.message)}
+        </div>
+      `;
+    }
+    toast('Erro ao carregar VAR: ' + result.error.message);
+    return;
+  }
+
   const links =
     result.data || [];
 
@@ -4698,12 +5214,6 @@ async function renderSettings() {
       0;
   }
 
-  if ($('unitFee')) {
-    $('unitFee').value =
-      settings?.unit_fee ||
-      0;
-  }
-
   if ($('instagramUrl')) {
     $('instagramUrl').value =
       settings?.instagram_url ||
@@ -4715,19 +5225,35 @@ async function renderSettings() {
       registerUrl();
   }
 
+  const adminsResult =
+    await SB
+      .from(
+        'admin_users'
+      )
+      .select(
+        'user_id,email,created_at'
+      )
+      .order(
+        'created_at'
+      );
+
+  if (adminsResult.error) {
+    console.error('Erro ao carregar administradores:', adminsResult.error);
+    if ($('adminsList')) {
+      $('adminsList').innerHTML = `
+        <tr>
+          <td colspan="3">
+            ${esc(adminsResult.error.message)}
+          </td>
+        </tr>
+      `;
+    }
+    toast('Erro ao carregar Administração: ' + adminsResult.error.message);
+    return;
+  }
+
   const admins =
-    (
-      await SB
-        .from(
-          'admin_users'
-        )
-        .select(
-          'user_id,email,created_at'
-        )
-        .order(
-          'created_at'
-        )
-    ).data || [];
+    adminsResult.data || [];
 
   if ($('adminsList')) {
     $('adminsList').innerHTML =
@@ -4786,12 +5312,6 @@ async function saveSettings(e) {
         monthly_fee:
           Number(
             $('monthlyFee')
-              ?.value
-          ) || 0,
-
-        unit_fee:
-          Number(
-            $('unitFee')
               ?.value
           ) || 0,
 
