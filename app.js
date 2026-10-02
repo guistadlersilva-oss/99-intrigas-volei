@@ -6188,7 +6188,6 @@ async function registerPlayer(e) {
     toast(
       'Link de cadastro inválido.'
     );
-
     return;
   }
 
@@ -6196,7 +6195,6 @@ async function registerPlayer(e) {
     toast(
       'Informe seu nome.'
     );
-
     return;
   }
 
@@ -6225,8 +6223,7 @@ async function registerPlayer(e) {
 
   if (
     !state.data ||
-    state.data.invite_token !==
-      invite
+    state.data.invite_token !== invite
   ) {
     toast(
       'Este link de cadastro não é mais válido.'
@@ -6242,21 +6239,17 @@ async function registerPlayer(e) {
     await SB
       .from('players')
       .insert({
-        name,
+        name: name,
 
-        skill_level:
-          skill,
+        skill_level: skill,
 
         skill_score:
-          SKILLS[
-            skill
-          ],
-
-        active:
-          true,
+          SKILLS[skill],
 
         access_token:
-          accessToken
+          accessToken,
+
+        active: true
       })
       .select()
       .single();
@@ -6295,24 +6288,6 @@ async function registerPlayer(e) {
     'Cadastro realizado com sucesso!'
   );
 }
-async function copyMyAccess() {
-  const value =
-    $('myAccessLink')
-      ?.value;
-
-  if (!value) {
-    return;
-  }
-
-  await navigator.clipboard.writeText(
-    value
-  );
-
-  toast(
-    'Link copiado.'
-  );
-}
-
 
 function openMyAccess() {
   const value =
