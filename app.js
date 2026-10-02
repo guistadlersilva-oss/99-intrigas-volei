@@ -2903,6 +2903,11 @@ function ensurePaymentControls() {
     return;
   }
 
+
+  /* =====================================================
+     CONTROLES DE MENSALIDADE
+  ===================================================== */
+
   const parent =
     monthly.closest(
       '.tableWrap'
@@ -2946,6 +2951,7 @@ function ensurePaymentControls() {
           >
         </label>
 
+
         <label>
           <span>
             Valor padrão mensal
@@ -2958,6 +2964,7 @@ function ensurePaymentControls() {
             min="0"
           >
         </label>
+
 
         <button
           type="button"
@@ -2974,6 +2981,20 @@ function ensurePaymentControls() {
       parent
     );
   }
+
+
+  /* =====================================================
+     PAGAMENTO INDIVIDUAL
+     
+     JOGO + JOGADOR + VALOR
+     
+     NÃO EXISTE MAIS:
+     - Histórico financeiro
+     - Data manual
+     - Nome manual
+     - Tipo manual
+     - "Já está incluído no caixa"
+  ===================================================== */
 
   const unitParent =
     unit.closest(
@@ -3008,7 +3029,9 @@ function ensurePaymentControls() {
       >
 
         <label>
-          <span>Jogo</span>
+          <span>
+            Jogo
+          </span>
 
           <select
             id="payGameSelect"
@@ -3016,16 +3039,22 @@ function ensurePaymentControls() {
           ></select>
         </label>
 
+
         <label>
-          <span>Jogador</span>
+          <span>
+            Jogador
+          </span>
 
           <select
             id="unitPlayerSelect"
           ></select>
         </label>
 
+
         <label>
-          <span>Valor</span>
+          <span>
+            Valor
+          </span>
 
           <input
             id="unitAmount"
@@ -3036,6 +3065,7 @@ function ensurePaymentControls() {
           >
         </label>
 
+
         <button
           type="button"
           onclick="addUnitCharge()"
@@ -3044,108 +3074,6 @@ function ensurePaymentControls() {
         </button>
 
       </div>
-
-      <hr style="margin:18px 0">
-
-      <h3>
-        Histórico financeiro
-      </h3>
-
-      <div
-        style="
-          display:grid;
-          gap:12px;
-          grid-template-columns:
-          repeat(auto-fit,minmax(170px,1fr));
-        "
-      >
-
-        <label>
-          <span>Data</span>
-
-          <input
-            id="historyDate"
-            type="date"
-            value="${todayKey()}"
-          >
-        </label>
-
-        <label>
-          <span>Nome</span>
-
-          <input
-            id="historyName"
-            type="text"
-            placeholder="Nome do pagador"
-          >
-        </label>
-
-        <label>
-          <span>Valor</span>
-
-          <input
-            id="historyAmount"
-            type="number"
-            min="0"
-            step="0.01"
-            placeholder="10,00"
-          >
-        </label>
-
-        <label>
-          <span>Tipo</span>
-
-          <select id="historyType">
-            <option value="individual">
-              Individual
-            </option>
-            <option value="mensal">
-              Mensal
-            </option>
-          </select>
-        </label>
-
-        <label>
-          <span>Jogo</span>
-
-          <select id="historyGame">
-            <option value="">
-              Sem jogo
-            </option>
-          </select>
-        </label>
-
-        <label
-          style="
-            display:flex;
-            gap:8px;
-            align-items:center;
-          "
-        >
-          <input
-            id="historyAlreadyInCash"
-            type="checkbox"
-            checked
-          >
-
-          <span>
-            Já está incluído no saldo atual do caixa
-          </span>
-        </label>
-
-        <button
-          type="button"
-          onclick="addHistoricalPayment()"
-        >
-          💾 Salvar histórico
-        </button>
-
-      </div>
-
-      <div
-        id="historyTableWrap"
-        style="margin-top:16px"
-      ></div>
     `;
 
     unitParent.parentElement.insertBefore(
