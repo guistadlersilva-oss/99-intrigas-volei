@@ -1561,6 +1561,10 @@ async function deleteGame(id) {
     );
 
   if (!game) {
+    toast(
+      'Jogo não encontrado.'
+    );
+
     return;
   }
 
@@ -1568,99 +1572,271 @@ async function deleteGame(id) {
     !confirm(
       `Excluir o jogo de ${dateBR(
         game.game_date
-      )}?\n\nOs pagamentos individuais serão preservados no histórico.`
+      )}?\n\n` +
+      `Os pagamentos individuais serão preservados no histórico.\n\n` +
+      `Esta ação não poderá ser desfeita.`
     )
   ) {
     return;
   }
 
-  const units =
-    (
+  try {
+
+    /* =====================================================
+       1. BUSCAR PAGAMENTOS INDIVIDUAIS
+    ===================================================== */
+
+    const unitsResult =
       await SB
-        .from(
-          'unit_payments'
-        )
+        .from('unit_payments')
         .select('*')
         .eq(
           'game_id',
           id
-        )
-    ).data || [];
+        );
 
-  for (
-    const payment of units
-  ) {
-    const player =
-      players.find(
-        p =>
-          p.id ===
-          payment.player_id
+    if (unitsResult.error) {
+      throw unitsResult.error;
+    }
+
+    const units =
+      unitsResult.data || [];
+
+
+    /* =====================================================
+       2. PRESERVAR PAGAMENTOS NO HISTÓRICO
+    ===================================================== */
+
+    for (
+      const payment of units
+    ) {
+
+      const player =
+        players.find(
+          p =>
+            p.id ===
+            payment.player_id
+        );
+
+      const historyResult =
+        await SB
+          .from('payment_history')
+          .insert({
+            payment_date:
+              game.game_date ||
+              todayKey(),
+
+            /*
+             * O histórico fica independente
+             * do jogador e do jogo.
+             */
+            player_id:
+              null,
+
+            player_name:
+              player?.name ||
+              'Jogador removido',
+
+            payment_type:
+              'individual',
+
+            /*
+             * Não mantemos game_id porque
+             * o jogo será excluído.
+             */
+            game_id:
+              null,
+
+            amount:
+              payment.amount,
+
+            notes:
+              `Pagamento preservado antes da exclusão do jogo de ${dateBR(
+                game.game_date
+              )}`
+          });
+
+      if (
+        historyResult.error
+      ) {
+        throw historyResult.error;
+      }
+    }
+
+
+    /* =====================================================
+       3. REMOVER MEMBROS DOS TIMES
+    ===================================================== */
+
+    const teamsResult =
+      await SB
+        .from('teams')
+        .select('id')
+        .eq(
+          'game_id',
+          id
+        );
+
+    if (teamsResult.error) {
+      throw teamsResult.error;
+    }
+
+    const teams =
+      teamsResult.data || [];
+
+    const teamIds =
+      teams.map(
+        t =>
+          t.id
       );
 
-    await SB
-      .from(
-        'payment_history'
-      )
-      .insert({
-        payment_date:
-          game.game_date,
 
-        player_id:
-          payment.player_id,
+    if (teamIds.length) {
 
-        player_name:
-          player?.name ||
-          'Jogador removido',
+      const teamMembersResult =
+        await SB
+          .from('team_members')
+          .delete()
+          .in(
+            'team_id',
+            teamIds
+          );
 
-        payment_type:
-          'individual',
+      if (
+        teamMembersResult.error
+      ) {
+        throw teamMembersResult.error;
+      }
+    }
 
-        game_id:
-          id,
 
-        amount:
-          payment.amount,
+    /* =====================================================
+       4. REMOVER TIMES
+    ===================================================== */
 
-        notes:
-          'Preservado antes da exclusão do jogo'
-      });
-  }
+    const teamsDeleteResult =
+      await SB
+        .from('teams')
+        .delete()
+        .eq(
+          'game_id',
+          id
+        );
 
-  const r =
-    await SB
-      .from('games')
-      .delete()
-      .eq(
-        'id',
-        id
-      );
+    if (
+      teamsDeleteResult.error
+    ) {
+      throw teamsDeleteResult.error;
+    }
 
-  if (r.error) {
+
+    /* =====================================================
+       5. REMOVER PAGAMENTOS INDIVIDUAIS
+    ===================================================== */
+
+    const unitDeleteResult =
+      await SB
+        .from('unit_payments')
+        .delete()
+        .eq(
+          'game_id',
+          id
+        );
+
+    if (
+      unitDeleteResult.error
+    ) {
+      throw unitDeleteResult.error;
+    }
+
+
+    /* =====================================================
+       6. REMOVER JOGADORES DO JOGO
+    ===================================================== */
+
+    const gamePlayersResult =
+      await SB
+        .from('game_players')
+        .delete()
+        .eq(
+          'game_id',
+          id
+        );
+
+    if (
+      gamePlayersResult.error
+    ) {
+      throw gamePlayersResult.error;
+    }
+
+
+    /* =====================================================
+       7. REMOVER O JOGO
+    ===================================================== */
+
+    const gameDeleteResult =
+      await SB
+        .from('games')
+        .delete()
+        .eq(
+          'id',
+          id
+        );
+
+    if (
+      gameDeleteResult.error
+    ) {
+      throw gameDeleteResult.error;
+    }
+
+
+    /* =====================================================
+       8. ATUALIZAR JOGO ATUAL
+    ===================================================== */
+
+    if (
+      currentGame?.id === id
+    ) {
+      currentGame =
+        allGames.find(
+          g =>
+            g.id !== id &&
+            g.game_date >=
+              todayKey()
+        ) ||
+        null;
+
+      editingGameId =
+        currentGame?.id ||
+        null;
+    }
+
+
+    /* =====================================================
+       9. RECARREGAR DADOS
+    ===================================================== */
+
+    await loadAdmin();
+
+    renderGames();
+
+
     toast(
-      r.error.message
+      'Jogo excluído. Pagamentos individuais preservados no histórico.'
     );
 
-    return;
+  } catch (error) {
+
+    console.error(
+      'Erro ao excluir jogo:',
+      error
+    );
+
+    toast(
+      error?.message ||
+      'Não foi possível excluir o jogo.'
+    );
   }
-
-  if (
-    currentGame?.id ===
-    id
-  ) {
-    currentGame =
-      null;
-
-    editingGameId =
-      null;
-  }
-
-  await loadAdmin();
-
-  toast(
-    'Jogo excluído.'
-  );
-
-  renderGames();
 }
 
 
