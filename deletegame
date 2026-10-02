@@ -3767,79 +3767,217 @@ async function toggleUnit(
   paid
 ) {
   if (!currentGame) {
-    return;
-  }
-
-  const newPaid =
-    !paid;
-
-  const r =
-    await SB.rpc(
-      'set_unit_paid',
-      {
-        p_game:
-          currentGame.id,
-
-        p_player:
-          playerId,
-
-        p_paid:
-          newPaid
-      }
-    );
-
-  if (r.error) {
     toast(
-      r.error.message
+      'Nenhum jogo selecionado.'
     );
 
     return;
   }
 
-  const payment =
-    (
+  const gameId =
+    currentGame.id;
+
+  try {
+    /* =====================================================
+       1. LOCALIZAR O PAGAMENTO INDIVIDUAL
+    ===================================================== */
+
+    const paymentResult =
       await SB
-        .from(
-          'unit_payments'
-        )
-        .select(
-          'amount'
-        )
+        .from('unit_payments')
+        .select('*')
         .eq(
           'game_id',
-          currentGame.id
+          gameId
         )
         .eq(
           'player_id',
           playerId
         )
-        .maybeSingle()
-    ).data;
+        .maybeSingle();
 
-  if (newPaid) {
-    await syncUnitCash(
-      currentGame.id,
-      playerId,
-      Number(
-        payment?.amount || 0
-      )
+    if (
+      paymentResult.error
+    ) {
+      throw paymentResult.error;
+    }
+
+    const payment =
+      paymentResult.data;
+
+
+    /* =====================================================
+       2. SE NÃO EXISTIR, CRIAR O PAGAMENTO
+    ===================================================== */
+
+    if (!payment) {
+      const defaultAmount =
+        Number(
+          settings?.unit_fee || 10
+        );
+
+      if (
+        !Number.isFinite(
+          defaultAmount
+        ) ||
+        defaultAmount <= 0
+      ) {
+        toast(
+          'Configure um valor válido para o pagamento individual.'
+        );
+
+        return;
+      }
+
+      const insertResult =
+        await SB
+          .from('unit_payments')
+          .insert({
+            game_id:
+              gameId,
+
+            player_id:
+              playerId,
+
+            amount:
+              defaultAmount
+          })
+          .select()
+          .single();
+
+      if (
+        insertResult.error
+      ) {
+        throw insertResult.error;
+      }
+
+      if (paid) {
+        await SB
+          .from('game_players')
+          .upsert(
+            {
+              game_id:
+                gameId,
+
+              player_id:
+                playerId,
+
+              present:
+                true,
+
+              payment_mode:
+                'individual'
+            },
+            {
+              onConflict:
+                'game_id,player_id'
+            }
+          );
+
+        await syncUnitCash(
+          gameId,
+          playerId,
+          defaultAmount
+        );
+      }
+
+      await renderPayments();
+
+      return;
+    }
+
+
+    /* =====================================================
+       3. MARCAR COMO PAGO
+    ===================================================== */
+
+    if (paid) {
+
+      const amount =
+        Number(
+          payment.amount
+        );
+
+      if (
+        !Number.isFinite(
+          amount
+        ) ||
+        amount <= 0
+      ) {
+        toast(
+          'O valor do pagamento individual precisa ser maior que zero.'
+        );
+
+        return;
+      }
+
+      const gamePlayerResult =
+        await SB
+          .from('game_players')
+          .upsert(
+            {
+              game_id:
+                gameId,
+
+              player_id:
+                playerId,
+
+              present:
+                true,
+
+              payment_mode:
+                'individual'
+            },
+            {
+              onConflict:
+                'game_id,player_id'
+            }
+          );
+
+      if (
+        gamePlayerResult.error
+      ) {
+        throw gamePlayerResult.error;
+      }
+
+      await syncUnitCash(
+        gameId,
+        playerId,
+        amount
+      );
+
+    } else {
+
+      /* ===================================================
+         4. DESMARCAR COMO PAGO
+      =================================================== */
+
+      await removeUnitCash(
+        gameId,
+        playerId
+      );
+    }
+
+
+    /* =====================================================
+       5. ATUALIZAR INTERFACE
+    ===================================================== */
+
+    await renderPayments();
+
+  } catch (error) {
+
+    console.error(
+      'Erro ao atualizar pagamento individual:',
+      error
     );
-  } else {
-    await removeUnitCash(
-      currentGame.id,
-      playerId
+
+    toast(
+      error?.message ||
+      'Não foi possível atualizar o pagamento.'
     );
   }
-
-  toast(
-    newPaid
-      ? 'Pagamento individual registrado.'
-      : 'Pagamento individual desmarcado.'
-  );
-
-  await renderPayments();
 }
-
 
 async function removeUnit(
   playerId
