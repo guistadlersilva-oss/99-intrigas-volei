@@ -26,6 +26,7 @@ let players = [];
 let settings = null;
 let playerToken = null;
 let playerData = null;
+let allGames = [];
 
 const $ = id => document.getElementById(id);
 
@@ -54,6 +55,7 @@ const dateBR = d =>
 
 const monthKey = () => {
   const d = new Date();
+
   return new Date(
     d.getFullYear(),
     d.getMonth(),
@@ -84,6 +86,10 @@ const sum = arr =>
     0
   );
 
+
+/* =========================================================
+   NAVEGAÇÃO
+========================================================= */
 
 function setMode(mode) {
   $('landing')?.classList.toggle(
@@ -123,6 +129,10 @@ function registerUrl() {
 }
 
 
+/* =========================================================
+   INICIALIZAÇÃO
+========================================================= */
+
 async function init() {
   const q = new URLSearchParams(location.search);
 
@@ -130,7 +140,8 @@ async function init() {
     setMode('register');
 
     if ($('registerToken')) {
-      $('registerToken').value = q.get('cadastro');
+      $('registerToken').value =
+        q.get('cadastro');
     }
 
     return;
@@ -138,31 +149,37 @@ async function init() {
 
   if (q.get('jogador')) {
     playerToken = q.get('jogador');
+
     await loadPlayer();
+
     return;
   }
 
-  const saved = localStorage.getItem(
-    'volei_player_token'
-  );
+  const saved =
+    localStorage.getItem(
+      'volei_player_token'
+    );
 
   if (saved) {
     playerToken = saved;
 
-    const ok = await loadPlayer(true);
+    const ok =
+      await loadPlayer(true);
 
     if (ok) {
       return;
     }
   }
 
-  const { data } = await SB.auth.getSession();
+  const { data } =
+    await SB.auth.getSession();
 
   if (data.session) {
     session = data.session;
 
     if (await checkAdmin()) {
       await enterAdmin();
+
       return;
     }
   }
@@ -170,31 +187,42 @@ async function init() {
   setMode('landing');
 
   if ($('year')) {
-    $('year').textContent = new Date().getFullYear();
+    $('year').textContent =
+      new Date().getFullYear();
   }
 }
 
 
 async function checkAdmin() {
-  const r = await SB.rpc('is_admin');
+  const r =
+    await SB.rpc('is_admin');
 
   return !r.error && r.data === true;
 }
 
 
+/* =========================================================
+   LOGIN ADMIN
+========================================================= */
+
 async function adminLogin(e) {
   e.preventDefault();
 
-  const email = $('adminEmail').value.trim();
-  const password = $('adminPassword').value;
+  const email =
+    $('adminEmail').value.trim();
 
-  const r = await SB.auth.signInWithPassword({
-    email,
-    password
-  });
+  const password =
+    $('adminPassword').value;
+
+  const r =
+    await SB.auth.signInWithPassword({
+      email,
+      password
+    });
 
   if (r.error) {
     toast(r.error.message);
+
     return;
   }
 
@@ -217,8 +245,11 @@ async function adminLogin(e) {
 async function adminSignup(e) {
   e.preventDefault();
 
-  const email = $('newAdminEmail').value.trim();
-  const password = $('newAdminPassword').value;
+  const email =
+    $('newAdminEmail').value.trim();
+
+  const password =
+    $('newAdminPassword').value;
 
   if (password.length < 6) {
     toast(
@@ -228,13 +259,15 @@ async function adminSignup(e) {
     return;
   }
 
-  const r = await SB.auth.signUp({
-    email,
-    password
-  });
+  const r =
+    await SB.auth.signUp({
+      email,
+      password
+    });
 
   if (r.error) {
     toast(r.error.message);
+
     return;
   }
 
@@ -270,42 +303,56 @@ async function logoutAdmin() {
 }
 
 
+/* =========================================================
+   CARREGAMENTO ADMIN
+========================================================= */
+
 async function loadAdmin() {
-  const [s, p, g] = await Promise.all([
-    SB
-      .from('group_settings')
-      .select('*')
-      .eq('id', true)
-      .single(),
+  const [s, p, g] =
+    await Promise.all([
+      SB
+        .from('group_settings')
+        .select('*')
+        .eq('id', true)
+        .single(),
 
-    SB
-      .from('players')
-      .select('*')
-      .order('name'),
+      SB
+        .from('players')
+        .select('*')
+        .order('name'),
 
-    SB
-      .from('games')
-      .select('*')
-      .order('game_date', {
-        ascending: false
-      })
-  ]);
+      SB
+        .from('games')
+        .select('*')
+        .order(
+          'game_date',
+          {
+            ascending: false
+          }
+        )
+    ]);
 
   if (s.error) {
     toast(s.error.message);
+
     return;
   }
 
   settings = s.data;
+
   players = p.data || [];
 
   const games = g.data || [];
+
+  allGames = games;
 
   currentGame =
     games.find(
       x =>
         x.game_date >=
-        new Date().toISOString().slice(0, 10)
+        new Date()
+          .toISOString()
+          .slice(0, 10)
     ) ||
     games[0] ||
     null;
@@ -317,6 +364,10 @@ async function loadAdmin() {
   }
 }
 
+
+/* =========================================================
+   MENU ADMIN
+========================================================= */
 
 function buildAdminNav() {
   $('adminNav').innerHTML = [
@@ -359,21 +410,47 @@ function showAdminPage(id, btn) {
     page.classList.add('active');
   }
 
-  if (id === 'dashboard') renderDashboard();
-  if (id === 'players') renderPlayers();
-  if (id === 'games') renderGames();
-  if (id === 'payments') renderPayments();
-  if (id === 'cash') renderCash();
-  if (id === 'media') renderMedia();
-  if (id === 'settings') renderSettings();
+  if (id === 'dashboard') {
+    renderDashboard();
+  }
+
+  if (id === 'players') {
+    renderPlayers();
+  }
+
+  if (id === 'games') {
+    renderGames();
+  }
+
+  if (id === 'payments') {
+    renderPayments();
+  }
+
+  if (id === 'cash') {
+    renderCash();
+  }
+
+  if (id === 'media') {
+    renderMedia();
+  }
+
+  if (id === 'settings') {
+    renderSettings();
+  }
 }
 
+
+/* =========================================================
+   DASHBOARD
+========================================================= */
 
 async function renderDashboard() {
   const all =
     await SB
       .from('cash_entries')
-      .select('entry_type,amount');
+      .select(
+        'entry_type,amount'
+      );
 
   const bal =
     (all.data || []).reduce(
@@ -390,12 +467,22 @@ async function renderDashboard() {
   $('dashCards').innerHTML = `
     <div class="statCard">
       <span>Jogadores</span>
-      <b>${players.filter(p => p.active).length}</b>
+      <b>
+        ${players.filter(p => p.active).length}
+      </b>
     </div>
 
     <div class="statCard">
       <span>Próximo jogo</span>
-      <b>${currentGame ? dateBR(currentGame.game_date) : '—'}</b>
+      <b>
+        ${
+          currentGame
+            ? dateBR(
+                currentGame.game_date
+              )
+            : '—'
+        }
+      </b>
     </div>
 
     <div class="statCard">
@@ -405,7 +492,11 @@ async function renderDashboard() {
 
     <div class="statCard">
       <span>Mensalidade</span>
-      <b>${money(settings?.monthly_fee)}</b>
+      <b>
+        ${money(
+          settings?.monthly_fee
+        )}
+      </b>
     </div>
   `;
 
@@ -415,9 +506,14 @@ async function renderDashboard() {
         <b>Próximo jogo:</b>
         ${dateBR(currentGame.game_date)}
         · ${currentGame.teams_count} times
+
         <br>
+
         <span class="muted">
-          ${esc(currentGame.notes || 'Sem observações')}
+          ${esc(
+            currentGame.notes ||
+              'Sem observações'
+          )}
         </span>
       `
       : `
@@ -430,13 +526,19 @@ async function renderDashboard() {
 }
 
 
+/* =========================================================
+   JOGADORES
+========================================================= */
+
 async function renderPlayers() {
-  const rows = players
-    .map(
-      p => `
+  const rows =
+    players
+      .map(
+        p => `
       <tr>
         <td>
           <b>${esc(p.name)}</b>
+
           ${
             p.user_id
               ? '<span class="badge admin">admin/jogador</span>'
@@ -445,62 +547,107 @@ async function renderPlayers() {
         </td>
 
         <td>
-          ${SKILL_LABEL[p.skill_level] || p.skill_level}
+          ${
+            SKILL_LABEL[
+              p.skill_level
+            ] ||
+            p.skill_level
+          }
         </td>
 
-        <td>${p.skill_score}</td>
+        <td>
+          ${p.skill_score}
+        </td>
 
         <td>
           <span class="badge ${
-            p.active ? 'paid' : 'pending'
+            p.active
+              ? 'paid'
+              : 'pending'
           }">
-            ${p.active ? 'Ativo' : 'Inativo'}
+            ${
+              p.active
+                ? 'Ativo'
+                : 'Inativo'
+            }
           </span>
         </td>
 
         <td>
-          <button onclick="editPlayer('${p.id}')">
+          <button
+            onclick="editPlayer('${p.id}')"
+          >
             Editar
           </button>
 
-          <button onclick="togglePlayer('${p.id}',${!p.active})">
-            ${p.active ? 'Desativar' : 'Ativar'}
+          <button
+            onclick="togglePlayer('${p.id}',${!p.active})"
+          >
+            ${
+              p.active
+                ? 'Desativar'
+                : 'Ativar'
+            }
           </button>
         </td>
       </tr>
     `
-    )
-    .join('');
+      )
+      .join('');
 
   $('playersTable').innerHTML =
     rows ||
     '<tr><td colspan="5">Nenhum jogador cadastrado.</td></tr>';
 
   $('playerCount').textContent =
-    `${players.filter(p => p.active).length} ativos`;
+    `${
+      players.filter(
+        p => p.active
+      ).length
+    } ativos`;
 }
 
 
 async function editPlayer(id) {
-  const p = players.find(x => x.id === id);
+  const p =
+    players.find(
+      x => x.id === id
+    );
 
-  if (!p) return;
+  if (!p) {
+    return;
+  }
 
-  const name = prompt('Nome:', p.name);
+  const name =
+    prompt(
+      'Nome:',
+      p.name
+    );
 
-  if (name === null) return;
+  if (name === null) {
+    return;
+  }
 
-  const skill = prompt(
-    'Habilidade (iniciante, basico, intermediario, avancado ou expert):',
-    p.skill_level
-  );
+  const skill =
+    prompt(
+      'Habilidade (iniciante, basico, intermediario, avancado ou expert):',
+      p.skill_level
+    );
 
-  if (skill === null) return;
+  if (skill === null) {
+    return;
+  }
 
-  const key = skill.trim().toLowerCase();
+  const key =
+    skill
+      .trim()
+      .toLowerCase();
 
   if (!SKILLS[key]) {
-    toast('Habilidade inválida.');
+    toast(
+      'Habilidade inválida.'
+    );
+
     return;
   }
 
@@ -510,35 +657,50 @@ async function editPlayer(id) {
       .update({
         name: name.trim(),
         skill_level: key,
-        skill_score: SKILLS[key]
+        skill_score:
+          SKILLS[key]
       })
       .eq('id', id);
 
   if (r.error) {
     toast(r.error.message);
   } else {
-    toast('Jogador atualizado.');
+    toast(
+      'Jogador atualizado.'
+    );
+
     await loadAdmin();
+
     renderPlayers();
   }
 }
 
 
-async function togglePlayer(id, active) {
+async function togglePlayer(
+  id,
+  active
+) {
   const r =
     await SB
       .from('players')
-      .update({ active })
+      .update({
+        active
+      })
       .eq('id', id);
 
   if (r.error) {
     toast(r.error.message);
   } else {
     await loadAdmin();
+
     renderPlayers();
   }
 }
 
+
+/* =========================================================
+   JOGOS
+========================================================= */
 
 async function renderGames() {
   $('gameFormDate').value =
@@ -548,26 +710,39 @@ async function renderGames() {
 
       d.setDate(
         d.getDate() +
-        ((5 - d.getDay() + 7) % 7)
+        (
+          (5 -
+            d.getDay() +
+            7) %
+          7
+        )
       );
 
-      return d.toISOString().slice(0, 10);
+      return d
+        .toISOString()
+        .slice(0, 10);
     })();
 
   $('gameTeams').value =
-    currentGame?.teams_count || 2;
+    currentGame?.teams_count ||
+    2;
 
   $('gameNotes').value =
-    currentGame?.notes || '';
+    currentGame?.notes ||
+    '';
 
   $('currentGameTitle').textContent =
     currentGame
-      ? `Jogo de ${dateBR(currentGame.game_date)}`
+      ? `Jogo de ${dateBR(
+          currentGame.game_date
+        )}`
       : 'Nenhum jogo';
 
   $('gamePlayerList').innerHTML =
     currentGame
-      ? await gamePlayerRows(currentGame.id)
+      ? await gamePlayerRows(
+          currentGame.id
+        )
       : `
         <div class="notice">
           Crie um jogo para selecionar quem vai jogar.
@@ -584,10 +759,17 @@ async function saveGame(e) {
   e.preventDefault();
 
   const payload = {
-    game_date: $('gameFormDate').value,
-    teams_count: +$('gameTeams').value,
-    notes: $('gameNotes').value,
-    created_by: session.user.id
+    game_date:
+      $('gameFormDate').value,
+
+    teams_count:
+      +$('gameTeams').value,
+
+    notes:
+      $('gameNotes').value,
+
+    created_by:
+      session.user.id
   };
 
   let r;
@@ -597,7 +779,10 @@ async function saveGame(e) {
       await SB
         .from('games')
         .update(payload)
-        .eq('id', currentGame.id)
+        .eq(
+          'id',
+          currentGame.id
+        )
         .select()
         .single();
   } else {
@@ -611,6 +796,7 @@ async function saveGame(e) {
 
   if (r.error) {
     toast(r.error.message);
+
     return;
   }
 
@@ -618,24 +804,32 @@ async function saveGame(e) {
 
   await loadAdmin();
 
-  toast('Jogo salvo.');
+  toast(
+    'Jogo salvo.'
+  );
 
   renderGames();
 }
 
 
-async function gamePlayerRows(gameId) {
+async function gamePlayerRows(
+  gameId
+) {
   const gp =
     (
       await SB
         .from('game_players')
         .select('*')
-        .eq('game_id', gameId)
+        .eq(
+          'game_id',
+          gameId
+        )
     ).data || [];
 
   return `
     <div class="tableWrap">
       <table>
+
         <thead>
           <tr>
             <th>Jogador</th>
@@ -646,26 +840,43 @@ async function gamePlayerRows(gameId) {
         </thead>
 
         <tbody>
+
           ${
             players
-              .filter(p => p.active)
+              .filter(
+                p => p.active
+              )
               .map(p => {
-                const x = gp.find(
-                  a => a.player_id === p.id
-                );
+                const x =
+                  gp.find(
+                    a =>
+                      a.player_id ===
+                      p.id
+                  );
 
                 return `
                   <tr>
-                    <td>${esc(p.name)}</td>
 
                     <td>
-                      ${SKILL_LABEL[p.skill_level]}
+                      ${esc(p.name)}
+                    </td>
+
+                    <td>
+                      ${
+                        SKILL_LABEL[
+                          p.skill_level
+                        ]
+                      }
                     </td>
 
                     <td>
                       <input
                         type="checkbox"
-                        ${x?.present ? 'checked' : ''}
+                        ${
+                          x?.present
+                            ? 'checked'
+                            : ''
+                        }
                         onchange="saveGamePlayer(
                           '${gameId}',
                           '${p.id}',
@@ -684,10 +895,14 @@ async function gamePlayerRows(gameId) {
                           this.value
                         )"
                       >
+
                         <option
                           value="mensal"
                           ${
-                            (x?.payment_mode || 'mensal') ===
+                            (
+                              x?.payment_mode ||
+                              'mensal'
+                            ) ===
                             'mensal'
                               ? 'selected'
                               : ''
@@ -699,21 +914,26 @@ async function gamePlayerRows(gameId) {
                         <option
                           value="individual"
                           ${
-                            x?.payment_mode === 'individual'
+                            x?.payment_mode ===
+                            'individual'
                               ? 'selected'
                               : ''
                           }
                         >
                           Individual
                         </option>
+
                       </select>
                     </td>
+
                   </tr>
                 `;
               })
               .join('')
           }
+
         </tbody>
+
       </table>
     </div>
   `;
@@ -731,67 +951,79 @@ async function saveGamePlayer(
       .from('game_players')
       .upsert(
         {
-          game_id: gameId,
-          player_id: playerId,
+          game_id:
+            gameId,
+
+          player_id:
+            playerId,
+
           present,
-          payment_mode: mode
+
+          payment_mode:
+            mode
         },
         {
-          onConflict: 'game_id,player_id'
+          onConflict:
+            'game_id,player_id'
         }
       );
 
   if (r.error) {
     toast(r.error.message);
+
     return;
   }
 
-  if (mode === 'individual' && present) {
+  if (
+    mode === 'individual' &&
+    present
+  ) {
     await SB
       .from('unit_payments')
       .upsert(
         {
-          game_id: gameId,
-          player_id: playerId,
-          amount: settings.unit_fee
+          game_id:
+            gameId,
+
+          player_id:
+            playerId,
+
+          amount:
+            settings.unit_fee
         },
         {
-          onConflict: 'game_id,player_id'
+          onConflict:
+            'game_id,player_id'
         }
       );
   } else {
     await SB
       .from('unit_payments')
       .delete()
-      .eq('game_id', gameId)
-      .eq('player_id', playerId);
+      .eq(
+        'game_id',
+        gameId
+      )
+      .eq(
+        'player_id',
+        playerId
+      );
   }
 
   await renderGames();
 }
 
 
-/*
- * SORTEIO DOS TIMES
- *
- * O número de times continua sendo definido
- * no cadastro do jogo.
- *
- * A quantidade de jogadores por time NÃO é fixa.
- *
- * Exemplos:
- *
- * 11 jogadores / 2 times = 5 + 6
- * 10 jogadores / 2 times = 5 + 5
- * 9 jogadores / 2 times  = 4 + 5
- * 8 jogadores / 2 times  = 4 + 4
- *
- * A diferença entre os times nunca será
- * maior que 1 jogador no sorteio automático.
- */
+/* =========================================================
+   SORTEIO DOS TIMES
+========================================================= */
+
 async function drawTeams() {
   if (!currentGame) {
-    toast('Nenhum jogo selecionado.');
+    toast(
+      'Nenhum jogo selecionado.'
+    );
+
     return;
   }
 
@@ -800,85 +1032,119 @@ async function drawTeams() {
       await SB
         .from('game_players')
         .select('player_id')
-        .eq('game_id', currentGame.id)
-        .eq('present', true)
+        .eq(
+          'game_id',
+          currentGame.id
+        )
+        .eq(
+          'present',
+          true
+        )
     ).data || [];
 
-  const ps = gp
-    .map(x =>
-      players.find(p => p.id === x.player_id)
-    )
-    .filter(Boolean)
-    .sort(
-      (a, b) =>
-        Number(b.skill_score) -
-        Number(a.skill_score)
-    );
+  const ps =
+    gp
+      .map(x =>
+        players.find(
+          p =>
+            p.id ===
+            x.player_id
+        )
+      )
+      .filter(Boolean)
+      .sort(
+        (a, b) =>
+          Number(
+            b.skill_score
+          ) -
+          Number(
+            a.skill_score
+          )
+      );
 
   if (!ps.length) {
     toast(
       'Nenhum jogador confirmado para este jogo.'
     );
+
     return;
   }
 
   const requestedTeams =
-    Number(currentGame.teams_count) || 2;
+    Number(
+      currentGame.teams_count
+    ) || 2;
 
-  const teamCount = Math.min(
-    Math.max(1, requestedTeams),
-    ps.length
-  );
+  const teamCount =
+    Math.min(
+      Math.max(
+        1,
+        requestedTeams
+      ),
+      ps.length
+    );
 
-  /*
-   * Calcula exatamente quantos jogadores
-   * cada time deverá receber.
-   *
-   * Exemplo:
-   * 11 jogadores / 2 times
-   *
-   * base = 5
-   * sobra = 1
-   *
-   * resultado = 6 e 5
-   */
   const baseSize =
-    Math.floor(ps.length / teamCount);
+    Math.floor(
+      ps.length /
+        teamCount
+    );
 
   const remainder =
-    ps.length % teamCount;
+    ps.length %
+    teamCount;
 
   const capacities =
     Array.from(
-      { length: teamCount },
+      {
+        length:
+          teamCount
+      },
       (_, i) =>
         baseSize +
-        (i < remainder ? 1 : 0)
+        (
+          i <
+          remainder
+            ? 1
+            : 0
+        )
     );
 
-  /*
-   * Apaga os times anteriores.
-   */
   const oldTeams =
     (
       await SB
         .from('teams')
         .select('id')
-        .eq('game_id', currentGame.id)
+        .eq(
+          'game_id',
+          currentGame.id
+        )
     ).data || [];
 
   if (oldTeams.length) {
     const oldIds =
-      oldTeams.map(x => x.id);
+      oldTeams.map(
+        x => x.id
+      );
 
     const deleteMembers =
       await SB
-        .from('team_members')
+        .from(
+          'team_members'
+        )
         .delete()
-        .in('team_id', oldIds);
+        .in(
+          'team_id',
+          oldIds
+        );
 
-    if (deleteMembers.error) {
-      toast(deleteMembers.error.message);
+    if (
+      deleteMembers.error
+    ) {
+      toast(
+        deleteMembers.error.message
+      );
+
       return;
     }
 
@@ -886,99 +1152,152 @@ async function drawTeams() {
       await SB
         .from('teams')
         .delete()
-        .eq('game_id', currentGame.id);
+        .eq(
+          'game_id',
+          currentGame.id
+        );
 
-    if (deleteTeams.error) {
-      toast(deleteTeams.error.message);
+    if (
+      deleteTeams.error
+    ) {
+      toast(
+        deleteTeams.error.message
+      );
+
       return;
     }
   }
 
   const teams =
     Array.from(
-      { length: teamCount },
+      {
+        length:
+          teamCount
+      },
       () => []
     );
 
-  /*
-   * Distribuição equilibrada por habilidade.
-   *
-   * O algoritmo sempre procura:
-   *
-   * 1. Time que ainda tenha espaço.
-   * 2. Menor pontuação acumulada.
-   * 3. Em empate, menor quantidade atual.
-   */
-  ps.forEach(player => {
-    const available =
-      [...Array(teamCount).keys()]
-        .filter(
+  ps.forEach(
+    player => {
+      const available =
+        [
+          ...Array(
+            teamCount
+          ).keys()
+        ].filter(
           i =>
-            teams[i].length <
+            teams[i]
+              .length <
             capacities[i]
         );
 
-    available.sort((a, b) => {
-      const skillDiff =
-        sum(teams[a]) -
-        sum(teams[b]);
+      available.sort(
+        (a, b) => {
+          const skillDiff =
+            sum(
+              teams[a]
+            ) -
+            sum(
+              teams[b]
+            );
 
-      if (skillDiff !== 0) {
-        return skillDiff;
-      }
+          if (
+            skillDiff !==
+            0
+          ) {
+            return skillDiff;
+          }
 
-      const sizeDiff =
-        teams[a].length -
-        teams[b].length;
+          const sizeDiff =
+            teams[a]
+              .length -
+            teams[b]
+              .length;
 
-      if (sizeDiff !== 0) {
-        return sizeDiff;
-      }
+          if (
+            sizeDiff !==
+            0
+          ) {
+            return sizeDiff;
+          }
 
-      return a - b;
-    });
+          return a - b;
+        }
+      );
 
-    teams[available[0]].push(player);
-  });
+      teams[
+        available[0]
+      ].push(player);
+    }
+  );
 
-  /*
-   * Cria os times no banco.
-   */
-  for (let i = 0; i < teams.length; i++) {
-    const teamPlayers = teams[i];
+  for (
+    let i = 0;
+    i < teams.length;
+    i++
+  ) {
+    const teamPlayers =
+      teams[i];
 
     const result =
       await SB
         .from('teams')
         .insert({
-          game_id: currentGame.id,
-          team_no: i + 1,
-          total_skill: sum(teamPlayers)
+          game_id:
+            currentGame.id,
+
+          team_no:
+            i + 1,
+
+          total_skill:
+            sum(
+              teamPlayers
+            )
         })
         .select()
         .single();
 
-    if (result.error) {
-      toast(result.error.message);
+    if (
+      result.error
+    ) {
+      toast(
+        result.error.message
+      );
+
       return;
     }
 
-    const team = result.data;
+    const team =
+      result.data;
 
-    if (teamPlayers.length) {
+    if (
+      teamPlayers.length
+    ) {
       const members =
-        teamPlayers.map(player => ({
-          team_id: team.id,
-          player_id: player.id
-        }));
+        teamPlayers.map(
+          player => ({
+            team_id:
+              team.id,
+
+            player_id:
+              player.id
+          })
+        );
 
       const mr =
         await SB
-          .from('team_members')
-          .insert(members);
+          .from(
+            'team_members'
+          )
+          .insert(
+            members
+          );
 
       if (mr.error) {
-        toast(mr.error.message);
+        toast(
+          mr.error.message
+        );
+
         return;
       }
     }
@@ -992,11 +1311,10 @@ async function drawTeams() {
 }
 
 
-/*
- * EXIBE OS TIMES PARA O ADMINISTRADOR
- *
- * Cada jogador possui um botão "Mover".
- */
+/* =========================================================
+   TIMES ADMIN
+========================================================= */
+
 async function renderTeamsAdmin() {
   if (!currentGame) {
     return;
@@ -1009,8 +1327,13 @@ async function renderTeamsAdmin() {
         .select(
           'id,team_no,total_skill'
         )
-        .eq('game_id', currentGame.id)
-        .order('team_no')
+        .eq(
+          'game_id',
+          currentGame.id
+        )
+        .order(
+          'team_no'
+        )
     ).data || [];
 
   if (!ts.length) {
@@ -1033,7 +1356,9 @@ async function renderTeamsAdmin() {
         )
         .in(
           'team_id',
-          ts.map(t => t.id)
+          ts.map(
+            t => t.id
+          )
         )
     ).data || [];
 
@@ -1044,13 +1369,16 @@ async function renderTeamsAdmin() {
           members
             .filter(
               m =>
-                m.team_id === t.id
+                m.team_id ===
+                t.id
             )
-            .map(m =>
-              players.find(
-                x =>
-                  x.id === m.player_id
-              )
+            .map(
+              m =>
+                players.find(
+                  x =>
+                    x.id ===
+                    m.player_id
+                )
             )
             .filter(Boolean);
 
@@ -1062,8 +1390,17 @@ async function renderTeamsAdmin() {
 
               <small>
                 ${teamMembers.length}
-                jogador${teamMembers.length === 1 ? '' : 'es'}
-                · ${sum(teamMembers)} pontos
+                jogador${
+                  teamMembers.length === 1
+                    ? ''
+                    : 'es'
+                }
+
+                ·
+                ${sum(
+                  teamMembers
+                )}
+                pontos
               </small>
             </h3>
 
@@ -1075,7 +1412,9 @@ async function renderTeamsAdmin() {
                         <div class="person">
 
                           <span>
-                            ${esc(p.name)}
+                            ${esc(
+                              p.name
+                            )}
 
                             <small>
                               ${
@@ -1113,9 +1452,6 @@ async function renderTeamsAdmin() {
 }
 
 
-/*
- * MOVE UM JOGADOR PARA OUTRO TIME
- */
 async function movePlayerFromTeam(
   playerId,
   currentTeamId
@@ -1128,26 +1464,38 @@ async function movePlayerFromTeam(
     (
       await SB
         .from('teams')
-        .select('id,team_no')
-        .eq('game_id', currentGame.id)
-        .order('team_no')
+        .select(
+          'id,team_no'
+        )
+        .eq(
+          'game_id',
+          currentGame.id
+        )
+        .order(
+          'team_no'
+        )
     ).data || [];
 
   const available =
     teams.filter(
-      t => t.id !== currentTeamId
+      t =>
+        t.id !==
+        currentTeamId
     );
 
   if (!available.length) {
     toast(
       'Não existem outros times para mover este jogador.'
     );
+
     return;
   }
 
   const player =
     players.find(
-      p => p.id === playerId
+      p =>
+        p.id ===
+        playerId
     );
 
   if (!player) {
@@ -1174,29 +1522,41 @@ async function movePlayerFromTeam(
   const teamNo =
     Number(answer);
 
-  if (!Number.isInteger(teamNo)) {
+  if (
+    !Number.isInteger(
+      teamNo
+    )
+  ) {
     toast(
       'Informe um número de time válido.'
     );
+
     return;
   }
 
   const target =
     available.find(
       t =>
-        t.team_no === teamNo
+        t.team_no ===
+        teamNo
     );
 
   if (!target) {
-    toast('Time inválido.');
+    toast(
+      'Time inválido.'
+    );
+
     return;
   }
 
   const r =
     await SB
-      .from('team_members')
+      .from(
+        'team_members'
+      )
       .update({
-        team_id: target.id
+        team_id:
+          target.id
       })
       .eq(
         'team_id',
@@ -1208,7 +1568,10 @@ async function movePlayerFromTeam(
       );
 
   if (r.error) {
-    toast(r.error.message);
+    toast(
+      r.error.message
+    );
+
     return;
   }
 
@@ -1222,10 +1585,6 @@ async function movePlayerFromTeam(
 }
 
 
-/*
- * RECALCULA A PONTUAÇÃO DOS TIMES
- * depois de uma movimentação manual.
- */
 async function recalculateTeamScores() {
   if (!currentGame) {
     return;
@@ -1242,12 +1601,18 @@ async function recalculateTeamScores() {
         )
     ).data || [];
 
-  for (const team of teams) {
+  for (
+    const team of teams
+  ) {
     const members =
       (
         await SB
-          .from('team_members')
-          .select('player_id')
+          .from(
+            'team_members'
+          )
+          .select(
+            'player_id'
+          )
           .eq(
             'team_id',
             team.id
@@ -1260,7 +1625,8 @@ async function recalculateTeamScores() {
           .map(m =>
             players.find(
               p =>
-                p.id === m.player_id
+                p.id ===
+                m.player_id
             )
           )
           .filter(Boolean)
@@ -1269,7 +1635,8 @@ async function recalculateTeamScores() {
     await SB
       .from('teams')
       .update({
-        total_skill: score
+        total_skill:
+          score
       })
       .eq(
         'id',
@@ -1288,7 +1655,9 @@ async function sendTeamsWhatsApp() {
     (
       await SB
         .from('teams')
-        .select('id,team_no')
+        .select(
+          'id,team_no'
+        )
         .eq(
           'game_id',
           currentGame.id
@@ -1298,19 +1667,25 @@ async function sendTeamsWhatsApp() {
   const members =
     (
       await SB
-        .from('team_members')
+        .from(
+          'team_members'
+        )
         .select(
           'team_id,player_id'
         )
         .in(
           'team_id',
-          ts.map(t => t.id)
+          ts.map(
+            t => t.id
+          )
         )
     ).data || [];
 
   const text =
     `🏐 99% INTRIGAS · 1% VÔLEI\n\n` +
-    `Jogo: ${dateBR(currentGame.game_date)}\n\n` +
+    `Jogo: ${dateBR(
+      currentGame.game_date
+    )}\n\n` +
     ts
       .map(
         t =>
@@ -1318,13 +1693,15 @@ async function sendTeamsWhatsApp() {
           members
             .filter(
               m =>
-                m.team_id === t.id
+                m.team_id ===
+                t.id
             )
             .map(
               m =>
                 players.find(
                   p =>
-                    p.id === m.player_id
+                    p.id ===
+                    m.player_id
                 )?.name
             )
             .filter(Boolean)
@@ -1334,30 +1711,337 @@ async function sendTeamsWhatsApp() {
 
   window.open(
     'https://wa.me/?text=' +
-      encodeURIComponent(text),
+      encodeURIComponent(
+        text
+      ),
     '_blank'
   );
 }
 
 
-async function renderPayments() {
-  const comp = monthKey();
+/* =========================================================
+   PAGAMENTOS
+========================================================= */
 
-  $('paymentMonth').textContent =
-    new Date(
-      comp + 'T12:00:00'
-    ).toLocaleDateString(
-      'pt-BR',
-      {
-        month: 'long',
-        year: 'numeric'
-      }
+function ensurePaymentControls() {
+  const monthlyTable =
+    $('monthlyTable');
+
+  const unitTable =
+    $('unitTable');
+
+  if (
+    !monthlyTable ||
+    !unitTable
+  ) {
+    return;
+  }
+
+  const monthlyParent =
+    monthlyTable.closest(
+      '.tableWrap'
+    ) ||
+    monthlyTable.parentElement;
+
+  const unitParent =
+    unitTable.closest(
+      '.tableWrap'
+    ) ||
+    unitTable.parentElement;
+
+  if (
+    monthlyParent &&
+    !$('paymentAdvancedControls')
+  ) {
+    const box =
+      document.createElement(
+        'div'
+      );
+
+    box.id =
+      'paymentAdvancedControls';
+
+    box.style.marginBottom =
+      '16px';
+
+    box.innerHTML = `
+      <div
+        style="
+          display:grid;
+          gap:12px;
+          grid-template-columns:
+            repeat(auto-fit,minmax(220px,1fr));
+        "
+      >
+
+        <label>
+          <span>
+            Valor mensal
+          </span>
+
+          <input
+            id="monthlyValueEdit"
+            type="number"
+            step="0.01"
+            min="0"
+            placeholder="Valor mensal"
+          >
+
+        </label>
+
+        <button
+          type="button"
+          onclick="saveDefaultMonthlyValue()"
+        >
+          💾 Salvar valor mensal
+        </button>
+
+      </div>
+    `;
+
+    monthlyParent.parentElement.insertBefore(
+      box,
+      monthlyParent
     );
+  }
+
+  if (
+    unitParent &&
+    !$('unitAdvancedControls')
+  ) {
+    const box =
+      document.createElement(
+        'div'
+      );
+
+    box.id =
+      'unitAdvancedControls';
+
+    box.style.marginBottom =
+      '16px';
+
+    box.innerHTML = `
+      <div
+        style="
+          display:grid;
+          gap:12px;
+          grid-template-columns:
+            repeat(auto-fit,minmax(200px,1fr));
+          align-items:end;
+        "
+      >
+
+        <label>
+          <span>
+            Jogo
+          </span>
+
+          <select
+            id="payGameSelect"
+            onchange="changePaymentGame(this.value)"
+          ></select>
+        </label>
+
+        <label>
+          <span>
+            Jogador
+          </span>
+
+          <select
+            id="unitPlayerSelect"
+          ></select>
+        </label>
+
+        <label>
+          <span>
+            Valor
+          </span>
+
+          <input
+            id="unitAmount"
+            type="number"
+            step="0.01"
+            min="0"
+            placeholder="Valor"
+          >
+        </label>
+
+        <button
+          type="button"
+          onclick="addUnitCharge()"
+        >
+          ➕ Adicionar cobrança
+        </button>
+
+        <button
+          type="button"
+          onclick="applyGameValue()"
+        >
+          💰 Aplicar valor aos pendentes
+        </button>
+
+      </div>
+    `;
+
+    unitParent.parentElement.insertBefore(
+      box,
+      unitParent
+    );
+  }
+}
+
+
+function renderPaymentGameSelector() {
+  const select =
+    $('payGameSelect');
+
+  if (!select) {
+    return;
+  }
+
+  select.innerHTML =
+    allGames.length
+      ? allGames
+          .map(
+            g => `
+              <option
+                value="${g.id}"
+                ${
+                  currentGame?.id ===
+                  g.id
+                    ? 'selected'
+                    : ''
+                }
+              >
+                ${dateBR(
+                  g.game_date
+                )}
+                ${
+                  g.notes
+                    ? ' · ' +
+                      esc(
+                        g.notes
+                      )
+                    : ''
+                }
+              </option>
+            `
+          )
+          .join('')
+      : `
+          <option value="">
+            Nenhum jogo cadastrado
+          </option>
+        `;
+}
+
+
+function renderUnitPlayerSelector(
+  selectedGameId
+) {
+  const select =
+    $('unitPlayerSelect');
+
+  if (!select) {
+    return;
+  }
+
+  const activePlayers =
+    players.filter(
+      p => p.active
+    );
+
+  select.innerHTML =
+    activePlayers.length
+      ? activePlayers
+          .map(
+            p => `
+              <option value="${p.id}">
+                ${esc(p.name)}
+              </option>
+            `
+          )
+          .join('')
+      : `
+          <option value="">
+            Nenhum jogador
+          </option>
+        `;
+}
+
+
+async function changePaymentGame(
+  gameId
+) {
+  if (!gameId) {
+    return;
+  }
+
+  const game =
+    allGames.find(
+      g =>
+        g.id ===
+        gameId
+    );
+
+  if (!game) {
+    return;
+  }
+
+  currentGame = game;
+
+  await renderPayments();
+}
+
+
+async function renderPayments() {
+  ensurePaymentControls();
+
+  const comp =
+    monthKey();
+
+  if ($('paymentMonth')) {
+    $('paymentMonth').textContent =
+      new Date(
+        comp +
+          'T12:00:00'
+      ).toLocaleDateString(
+        'pt-BR',
+        {
+          month:
+            'long',
+          year:
+            'numeric'
+        }
+      );
+  }
+
+  if (
+    $('monthlyValueEdit')
+  ) {
+    $('monthlyValueEdit').value =
+      Number(
+        settings?.monthly_fee ||
+        0
+      ).toFixed(2);
+  }
+
+  renderPaymentGameSelector();
+
+  if (
+    currentGame
+  ) {
+    renderUnitPlayerSelector(
+      currentGame.id
+    );
+  }
 
   const mp =
     (
       await SB
-        .from('monthly_payments')
+        .from(
+          'monthly_payments'
+        )
         .select('*')
         .eq(
           'competence',
@@ -1365,14 +2049,26 @@ async function renderPayments() {
         )
     ).data || [];
 
+  const activePlayers =
+    players.filter(
+      p => p.active
+    );
+
   $('monthlyTable').innerHTML =
-    players
-      .filter(p => p.active)
+    activePlayers
       .map(p => {
         const x =
           mp.find(
             a =>
-              a.player_id === p.id
+              a.player_id ===
+              p.id
+          );
+
+        const amount =
+          Number(
+            x?.amount ??
+            settings.monthly_fee ??
+            0
           );
 
         return `
@@ -1383,10 +2079,17 @@ async function renderPayments() {
             </td>
 
             <td>
-              ${money(
-                x?.amount ||
-                  settings.monthly_fee
-              )}
+              <input
+                type="number"
+                step="0.01"
+                min="0"
+                value="${amount.toFixed(2)}"
+                style="max-width:120px"
+                onchange="editMonthlyAmount(
+                  '${p.id}',
+                  this.value
+                )"
+              >
             </td>
 
             <td>
@@ -1404,6 +2107,7 @@ async function renderPayments() {
             </td>
 
             <td>
+
               <button
                 onclick="toggleMonthly(
                   '${p.id}',
@@ -1416,43 +2120,82 @@ async function renderPayments() {
                     : 'Marcar pago'
                 }
               </button>
+
             </td>
 
           </tr>
         `;
       })
-      .join('');
+      .join('') ||
+    `
+      <tr>
+        <td colspan="4">
+          Nenhum jogador ativo.
+        </td>
+      </tr>
+    `;
 
-  if (currentGame) {
-    const up =
-      (
-        await SB
-          .from('unit_payments')
-          .select('*')
-          .eq(
-            'game_id',
-            currentGame.id
-          )
-      ).data || [];
-
+  if (!currentGame) {
     $('unitTable').innerHTML =
-      up
-        .map(
-          x => `
+      `
+        <tr>
+          <td colspan="5">
+            Nenhum jogo selecionado.
+          </td>
+        </tr>
+      `;
+
+    return;
+  }
+
+  const up =
+    (
+      await SB
+        .from(
+          'unit_payments'
+        )
+        .select('*')
+        .eq(
+          'game_id',
+          currentGame.id
+        )
+    ).data || [];
+
+  $('unitTable').innerHTML =
+    up
+      .map(
+        x => {
+          const player =
+            players.find(
+              p =>
+                p.id ===
+                x.player_id
+            );
+
+          return `
             <tr>
 
               <td>
                 ${esc(
-                  players.find(
-                    p =>
-                      p.id ===
-                      x.player_id
-                  )?.name || ''
+                  player?.name ||
+                  'Jogador removido'
                 )}
               </td>
 
               <td>
-                ${money(x.amount)}
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value="${Number(
+                    x.amount || 0
+                  ).toFixed(2)}"
+                  style="max-width:120px"
+                  onchange="editUnitAmount(
+                    '${x.player_id}',
+                    this.value
+                  )"
+                >
               </td>
 
               <td>
@@ -1470,6 +2213,7 @@ async function renderPayments() {
               </td>
 
               <td>
+
                 <button
                   onclick="toggleUnit(
                     '${x.player_id}',
@@ -1482,20 +2226,465 @@ async function renderPayments() {
                       : 'Marcar pago'
                   }
                 </button>
+
+              </td>
+
+              <td>
+
+                <button
+                  onclick="removeUnit(
+                    '${x.player_id}'
+                  )"
+                >
+                  🗑️ Remover
+                </button>
+
               </td>
 
             </tr>
-          `
-        )
-        .join('') ||
-      `
-        <tr>
-          <td colspan="4">
-            Nenhum individual neste jogo.
-          </td>
-        </tr>
-      `;
+          `;
+        }
+      )
+      .join('') ||
+    `
+      <tr>
+        <td colspan="5">
+          Nenhum pagamento individual neste jogo.
+        </td>
+      </tr>
+    `;
+}
+
+
+async function saveDefaultMonthlyValue() {
+  const value =
+    Number(
+      $('monthlyValueEdit')?.value
+    );
+
+  if (
+    !Number.isFinite(value) ||
+    value < 0
+  ) {
+    toast(
+      'Informe um valor mensal válido.'
+    );
+
+    return;
   }
+
+  const r =
+    await SB
+      .from(
+        'group_settings'
+      )
+      .update({
+        monthly_fee:
+          value,
+
+        updated_at:
+          new Date().toISOString()
+      })
+      .eq(
+        'id',
+        true
+      );
+
+  if (r.error) {
+    toast(
+      r.error.message
+    );
+
+    return;
+  }
+
+  settings.monthly_fee =
+    value;
+
+  toast(
+    'Valor mensal padrão atualizado.'
+  );
+
+  await renderPayments();
+}
+
+
+async function editMonthlyAmount(
+  playerId,
+  value
+) {
+  const amount =
+    Number(value);
+
+  if (
+    !Number.isFinite(
+      amount
+    ) ||
+    amount < 0
+  ) {
+    toast(
+      'Valor inválido.'
+    );
+
+    await renderPayments();
+
+    return;
+  }
+
+  const comp =
+    monthKey();
+
+  const r =
+    await SB
+      .from(
+        'monthly_payments'
+      )
+      .upsert(
+        {
+          player_id:
+            playerId,
+
+          competence:
+            comp,
+
+          amount
+        },
+        {
+          onConflict:
+            'player_id,competence'
+        }
+      );
+
+  if (r.error) {
+    toast(
+      r.error.message
+    );
+
+    return;
+  }
+
+  toast(
+    'Valor da mensalidade atualizado.'
+  );
+}
+
+
+async function editUnitAmount(
+  playerId,
+  value
+) {
+  if (!currentGame) {
+    return;
+  }
+
+  const amount =
+    Number(value);
+
+  if (
+    !Number.isFinite(
+      amount
+    ) ||
+    amount < 0
+  ) {
+    toast(
+      'Valor inválido.'
+    );
+
+    await renderPayments();
+
+    return;
+  }
+
+  const r =
+    await SB
+      .from(
+        'unit_payments'
+      )
+      .update({
+        amount
+      })
+      .eq(
+        'game_id',
+        currentGame.id
+      )
+      .eq(
+        'player_id',
+        playerId
+      );
+
+  if (r.error) {
+    toast(
+      r.error.message
+    );
+
+    return;
+  }
+
+  toast(
+    'Valor individual atualizado.'
+  );
+}
+
+
+async function addUnitCharge() {
+  const gameId =
+    $('payGameSelect')?.value;
+
+  const playerId =
+    $('unitPlayerSelect')?.value;
+
+  const amount =
+    Number(
+      $('unitAmount')?.value
+    );
+
+  if (!gameId) {
+    toast(
+      'Selecione um jogo.'
+    );
+
+    return;
+  }
+
+  if (!playerId) {
+    toast(
+      'Selecione um jogador.'
+    );
+
+    return;
+  }
+
+  if (
+    !Number.isFinite(
+      amount
+    ) ||
+    amount <= 0
+  ) {
+    toast(
+      'Informe um valor válido.'
+    );
+
+    return;
+  }
+
+  const r =
+    await SB
+      .from(
+        'unit_payments'
+      )
+      .upsert(
+        {
+          game_id:
+            gameId,
+
+          player_id:
+            playerId,
+
+          amount
+        },
+        {
+          onConflict:
+            'game_id,player_id'
+        }
+      );
+
+  if (r.error) {
+    toast(
+      r.error.message
+    );
+
+    return;
+  }
+
+  const gp =
+    await SB
+      .from(
+        'game_players'
+      )
+      .upsert(
+        {
+          game_id:
+            gameId,
+
+          player_id:
+            playerId,
+
+          present:
+            true,
+
+          payment_mode:
+            'individual'
+        },
+        {
+          onConflict:
+            'game_id,player_id'
+        }
+      );
+
+  if (gp.error) {
+    toast(
+      gp.error.message
+    );
+
+    return;
+  }
+
+  currentGame =
+    allGames.find(
+      g =>
+        g.id ===
+        gameId
+    ) ||
+    currentGame;
+
+  if (
+    $('unitAmount')
+  ) {
+    $('unitAmount').value =
+      '';
+  }
+
+  toast(
+    'Cobrança individual adicionada.'
+  );
+
+  await renderPayments();
+}
+
+
+async function applyGameValue() {
+  if (!currentGame) {
+    toast(
+      'Selecione um jogo.'
+    );
+
+    return;
+  }
+
+  const amount =
+    Number(
+      $('unitAmount')?.value ||
+      settings?.unit_fee ||
+      0
+    );
+
+  if (
+    !Number.isFinite(
+      amount
+    ) ||
+    amount <= 0
+  ) {
+    toast(
+      'Informe o valor que será aplicado.'
+    );
+
+    return;
+  }
+
+  const up =
+    (
+      await SB
+        .from(
+          'unit_payments'
+        )
+        .select(
+          'player_id,paid'
+        )
+        .eq(
+          'game_id',
+          currentGame.id
+        )
+    ).data || [];
+
+  const pending =
+    up.filter(
+      x => !x.paid
+    );
+
+  if (!pending.length) {
+    toast(
+      'Não há cobranças individuais pendentes neste jogo.'
+    );
+
+    return;
+  }
+
+  const r =
+    await SB
+      .from(
+        'unit_payments'
+      )
+      .update({
+        amount
+      })
+      .eq(
+        'game_id',
+        currentGame.id
+      )
+      .eq(
+        'paid',
+        false
+      );
+
+  if (r.error) {
+    toast(
+      r.error.message
+    );
+
+    return;
+  }
+
+  toast(
+    `Valor de ${money(amount)} aplicado às cobranças pendentes.`
+  );
+
+  await renderPayments();
+}
+
+
+async function removeUnit(
+  playerId
+) {
+  if (!currentGame) {
+    return;
+  }
+
+  if (
+    !confirm(
+      'Remover esta cobrança individual?'
+    )
+  ) {
+    return;
+  }
+
+  const r =
+    await SB
+      .from(
+        'unit_payments'
+      )
+      .delete()
+      .eq(
+        'game_id',
+        currentGame.id
+      )
+      .eq(
+        'player_id',
+        playerId
+      );
+
+  if (r.error) {
+    toast(
+      r.error.message
+    );
+
+    return;
+  }
+
+  toast(
+    'Cobrança removida.'
+  );
+
+  await renderPayments();
 }
 
 
@@ -1507,20 +2696,27 @@ async function toggleMonthly(
     await SB.rpc(
       'set_monthly_paid',
       {
-        p_player: pid,
-        p_competence: monthKey(),
-        p_paid: !paid
+        p_player:
+          pid,
+
+        p_competence:
+          monthKey(),
+
+        p_paid:
+          !paid
       }
     );
 
   if (r.error) {
-    toast(r.error.message);
+    toast(
+      r.error.message
+    );
   } else {
     toast(
       'Mensalidade atualizada.'
     );
 
-    renderPayments();
+    await renderPayments();
   }
 }
 
@@ -1537,9 +2733,14 @@ async function toggleUnit(
     await SB.rpc(
       'set_unit_paid',
       {
-        p_game: currentGame.id,
-        p_player: pid,
-        p_paid: !paid
+        p_game:
+          currentGame.id,
+
+        p_player:
+          pid,
+
+        p_paid:
+          !paid
       }
     );
 
@@ -1552,21 +2753,123 @@ async function toggleUnit(
       'Pagamento individual atualizado.'
     );
 
-    renderPayments();
+    await renderPayments();
   }
 }
 
 
+/* =========================================================
+   CAIXA
+========================================================= */
+
+function ensureCashControls() {
+  const table =
+    $('cashTable');
+
+  if (
+    !table ||
+    $('cashAdvancedControls')
+  ) {
+    return;
+  }
+
+  const parent =
+    table.closest(
+      '.tableWrap'
+    ) ||
+    table.parentElement;
+
+  if (!parent) {
+    return;
+  }
+
+  const box =
+    document.createElement(
+      'div'
+    );
+
+  box.id =
+    'cashAdvancedControls';
+
+  box.style.marginBottom =
+    '16px';
+
+  box.innerHTML = `
+    <div
+      style="
+        display:grid;
+        gap:12px;
+        grid-template-columns:
+          repeat(auto-fit,minmax(180px,1fr));
+        align-items:end;
+      "
+    >
+
+      <label>
+        <span>Descrição</span>
+
+        <input
+          id="cashIncomeDescription"
+          type="text"
+          placeholder="Ex.: Pagamento individual"
+        >
+      </label>
+
+      <label>
+        <span>Categoria</span>
+
+        <input
+          id="cashIncomeCategory"
+          type="text"
+          value="Mensalidade"
+          placeholder="Categoria"
+        >
+      </label>
+
+      <label>
+        <span>Valor</span>
+
+        <input
+          id="cashIncomeAmount"
+          type="number"
+          min="0"
+          step="0.01"
+          placeholder="0,00"
+        >
+      </label>
+
+      <button
+        type="button"
+        onclick="addCashIncome()"
+      >
+        ➕ Registrar entrada
+      </button>
+
+    </div>
+  `;
+
+  parent.parentElement.insertBefore(
+    box,
+    parent
+  );
+}
+
+
 async function renderCash() {
+  ensureCashControls();
+
   const ce =
     (
       await SB
-        .from('cash_entries')
+        .from(
+          'cash_entries'
+        )
         .select('*')
         .order(
           'created_at',
           {
-            ascending: false
+            ascending:
+              false
           }
         )
     ).data || [];
@@ -1575,11 +2878,13 @@ async function renderCash() {
     ce
       .filter(
         x =>
-          x.entry_type === 'in'
+          x.entry_type ===
+          'in'
       )
       .reduce(
         (a, x) =>
-          a + +x.amount,
+          a +
+          +x.amount,
         0
       );
 
@@ -1587,28 +2892,36 @@ async function renderCash() {
     ce
       .filter(
         x =>
-          x.entry_type === 'out'
+          x.entry_type ===
+          'out'
       )
       .reduce(
         (a, x) =>
-          a + +x.amount,
+          a +
+          +x.amount,
         0
       );
 
   $('cashStats').innerHTML = `
     <div class="statCard">
       <span>Entradas</span>
-      <b>${money(ins)}</b>
+      <b>
+        ${money(ins)}
+      </b>
     </div>
 
     <div class="statCard">
       <span>Saídas</span>
-      <b>${money(outs)}</b>
+      <b>
+        ${money(outs)}
+      </b>
     </div>
 
     <div class="statCard">
       <span>Saldo</span>
-      <b>${money(ins - outs)}</b>
+      <b>
+        ${money(ins - outs)}
+      </b>
     </div>
   `;
 
@@ -1617,6 +2930,7 @@ async function renderCash() {
       .map(
         x => `
           <tr>
+
             <td>
               ${new Date(
                 x.created_at
@@ -1627,34 +2941,131 @@ async function renderCash() {
 
             <td>
               ${
-                x.entry_type === 'in'
+                x.entry_type ===
+                'in'
                   ? 'Entrada'
                   : 'Saída'
               }
             </td>
 
             <td>
-              ${esc(x.category)}
+              ${esc(
+                x.category
+              )}
             </td>
 
             <td>
-              ${esc(x.description)}
+              ${esc(
+                x.description
+              )}
             </td>
 
             <td>
-              ${money(x.amount)}
+              ${money(
+                x.amount
+              )}
             </td>
+
+            <td>
+              <button
+                onclick="deleteCashEntry('${x.id}')"
+              >
+                🗑️ Excluir
+              </button>
+            </td>
+
           </tr>
         `
       )
       .join('') ||
     `
       <tr>
-        <td colspan="5">
+        <td colspan="6">
           Sem movimentações.
         </td>
       </tr>
     `;
+}
+
+
+async function addCashIncome() {
+  const amount =
+    Number(
+      $('cashIncomeAmount')
+        ?.value
+    );
+
+  if (
+    !Number.isFinite(
+      amount
+    ) ||
+    amount <= 0
+  ) {
+    toast(
+      'Informe um valor válido.'
+    );
+
+    return;
+  }
+
+  const description =
+    $('cashIncomeDescription')
+      ?.value
+      .trim() ||
+    'Entrada';
+
+  const category =
+    $('cashIncomeCategory')
+      ?.value
+      .trim() ||
+    'Outros';
+
+  const r =
+    await SB
+      .from(
+        'cash_entries'
+      )
+      .insert({
+        entry_type:
+          'in',
+
+        category,
+
+        description,
+
+        amount,
+
+        created_by:
+          session.user.id
+      });
+
+  if (r.error) {
+    toast(
+      r.error.message
+    );
+
+    return;
+  }
+
+  if (
+    $('cashIncomeAmount')
+  ) {
+    $('cashIncomeAmount').value =
+      '';
+  }
+
+  if (
+    $('cashIncomeDescription')
+  ) {
+    $('cashIncomeDescription').value =
+      '';
+  }
+
+  toast(
+    'Entrada registrada.'
+  );
+
+  await renderCash();
 }
 
 
@@ -1670,20 +3081,32 @@ async function addExpense(e) {
 
   const r =
     await SB
-      .from('cash_entries')
+      .from(
+        'cash_entries'
+      )
       .insert({
-        entry_type: 'out',
+        entry_type:
+          'out',
+
         category:
-          $('expenseCategory').value,
+          $('expenseCategory')
+            .value,
+
         description:
-          $('expenseDescription').value,
+          $('expenseDescription')
+            .value,
+
         amount,
+
         created_by:
           session.user.id
       });
 
   if (r.error) {
-    toast(r.error.message);
+    toast(
+      r.error.message
+    );
+
     return;
   }
 
@@ -1697,16 +3120,61 @@ async function addExpense(e) {
 }
 
 
+async function deleteCashEntry(
+  id
+) {
+  if (
+    !confirm(
+      'Excluir este lançamento do caixa?'
+    )
+  ) {
+    return;
+  }
+
+  const r =
+    await SB
+      .from(
+        'cash_entries'
+      )
+      .delete()
+      .eq(
+        'id',
+        id
+      );
+
+  if (r.error) {
+    toast(
+      r.error.message
+    );
+
+    return;
+  }
+
+  toast(
+    'Lançamento excluído.'
+  );
+
+  await renderCash();
+}
+
+
+/* =========================================================
+   VAR / SPOTIFY
+========================================================= */
+
 async function renderMedia() {
   const v =
     (
       await SB
-        .from('var_links')
+        .from(
+          'var_links'
+        )
         .select('*')
         .order(
           'created_at',
           {
-            ascending: false
+            ascending:
+              false
           }
         )
     ).data || [];
@@ -1716,19 +3184,46 @@ async function renderMedia() {
       .map(
         x => `
           <div class="mediaRow">
+
             <div>
-              <b>${esc(x.title)}</b>
+              <b>
+                ${esc(
+                  x.title
+                )}
+              </b>
+
               <small>
-                ${dateBR(x.game_date)}
+                ${dateBR(
+                  x.game_date
+                )}
               </small>
             </div>
 
-            <a
-              target="_blank"
-              href="${esc(x.url)}"
+            <div
+              style="
+                display:flex;
+                gap:8px;
+                align-items:center;
+              "
             >
-              Abrir
-            </a>
+
+              <a
+                target="_blank"
+                href="${esc(
+                  x.url
+                )}"
+              >
+                Abrir
+              </a>
+
+              <button
+                onclick="deleteVar('${x.id}')"
+              >
+                🗑️
+              </button>
+
+            </div>
+
           </div>
         `
       )
@@ -1740,7 +3235,8 @@ async function renderMedia() {
     `;
 
   $('spotifyInput').value =
-    settings?.spotify_url || '';
+    settings?.spotify_url ||
+    '';
 }
 
 
@@ -1749,20 +3245,31 @@ async function addVar(e) {
 
   const r =
     await SB
-      .from('var_links')
+      .from(
+        'var_links'
+      )
       .insert({
         title:
-          $('varTitle').value,
+          $('varTitle')
+            .value,
+
         url:
-          $('varUrl').value,
+          $('varUrl')
+            .value,
+
         game_date:
-          $('varDate').value || null,
+          $('varDate')
+            .value ||
+          null,
+
         created_by:
           session.user.id
       });
 
   if (r.error) {
-    toast(r.error.message);
+    toast(
+      r.error.message
+    );
   } else {
     toast(
       'Vídeo adicionado.'
@@ -1775,25 +3282,77 @@ async function addVar(e) {
 }
 
 
-async function saveSpotify(e) {
-  e.preventDefault();
+async function deleteVar(
+  id
+) {
+  if (
+    !confirm(
+      'Excluir este vídeo do VAR?'
+    )
+  ) {
+    return;
+  }
 
   const r =
     await SB
-      .from('group_settings')
-      .update({
-        spotify_url:
-          $('spotifyInput').value.trim(),
-        updated_at:
-          new Date().toISOString()
-      })
-      .eq('id', true);
+      .from(
+        'var_links'
+      )
+      .delete()
+      .eq(
+        'id',
+        id
+      );
 
   if (r.error) {
-    toast(r.error.message);
+    toast(
+      r.error.message
+    );
+
+    return;
+  }
+
+  toast(
+    'Vídeo excluído.'
+  );
+
+  await renderMedia();
+}
+
+
+async function saveSpotify(e) {
+  e.preventDefault();
+
+  const url =
+    $('spotifyInput')
+      .value
+      .trim();
+
+  const r =
+    await SB
+      .from(
+        'group_settings'
+      )
+      .update({
+        spotify_url:
+          url,
+
+        updated_at:
+          new Date()
+            .toISOString()
+      })
+      .eq(
+        'id',
+        true
+      );
+
+  if (r.error) {
+    toast(
+      r.error.message
+    );
   } else {
     settings.spotify_url =
-      $('spotifyInput').value.trim();
+      url;
 
     toast(
       'Playlist salva.'
@@ -1801,6 +3360,10 @@ async function saveSpotify(e) {
   }
 }
 
+
+/* =========================================================
+   ADMINISTRAÇÃO
+========================================================= */
 
 async function renderSettings() {
   const mine =
@@ -1816,20 +3379,24 @@ async function renderSettings() {
     ).data;
 
   $('adminPlayerName').value =
-    mine?.name || '';
+    mine?.name ||
+    '';
 
   $('adminPlayerSkill').value =
     mine?.skill_level ||
     'intermediario';
 
   $('monthlyFee').value =
-    settings.monthly_fee || 0;
+    settings.monthly_fee ||
+    0;
 
   $('unitFee').value =
-    settings.unit_fee || 0;
+    settings.unit_fee ||
+    0;
 
   $('instagramUrl').value =
-    settings.instagram_url || '';
+    settings.instagram_url ||
+    '';
 
   $('registerLink').value =
     registerUrl();
@@ -1837,11 +3404,15 @@ async function renderSettings() {
   const admins =
     (
       await SB
-        .from('admin_users')
+        .from(
+          'admin_users'
+        )
         .select(
           'user_id,email,created_at'
         )
-        .order('created_at')
+        .order(
+          'created_at'
+        )
     ).data || [];
 
   $('adminsList').innerHTML =
@@ -1851,7 +3422,9 @@ async function renderSettings() {
           <tr>
 
             <td>
-              ${esc(a.email || '')}
+              ${esc(
+                a.email || ''
+              )}
             </td>
 
             <td>
@@ -1890,24 +3463,38 @@ async function saveSettings(e) {
 
   const r =
     await SB
-      .from('group_settings')
+      .from(
+        'group_settings'
+      )
       .update({
         monthly_fee:
-          +$('monthlyFee').value || 0,
+          +$(
+            'monthlyFee'
+          ).value || 0,
 
         unit_fee:
-          +$('unitFee').value || 0,
+          +$(
+            'unitFee'
+          ).value || 0,
 
         instagram_url:
-          $('instagramUrl').value.trim(),
+          $('instagramUrl')
+            .value
+            .trim(),
 
         updated_at:
-          new Date().toISOString()
+          new Date()
+            .toISOString()
       })
-      .eq('id', true);
+      .eq(
+        'id',
+        true
+      );
 
   if (r.error) {
-    toast(r.error.message);
+    toast(
+      r.error.message
+    );
   } else {
     await loadAdmin();
 
@@ -1923,22 +3510,31 @@ async function saveSettings(e) {
 async function rotateInvite() {
   const r =
     await SB
-      .from('group_settings')
+      .from(
+        'group_settings'
+      )
       .update({
         invite_token:
           crypto.randomUUID(),
 
         updated_at:
-          new Date().toISOString()
+          new Date()
+            .toISOString()
       })
-      .eq('id', true)
+      .eq(
+        'id',
+        true
+      )
       .select()
       .single();
 
   if (r.error) {
-    toast(r.error.message);
+    toast(
+      r.error.message
+    );
   } else {
-    settings = r.data;
+    settings =
+      r.data;
 
     $('registerLink').value =
       registerUrl();
@@ -1952,7 +3548,8 @@ async function rotateInvite() {
 
 async function copyRegister() {
   await navigator.clipboard.writeText(
-    $('registerLink').value
+    $('registerLink')
+      .value
   );
 
   toast(
@@ -1970,7 +3567,9 @@ function sendRegisterWhatsApp() {
 
   window.open(
     'https://wa.me/?text=' +
-      encodeURIComponent(text),
+      encodeURIComponent(
+        text
+      ),
     '_blank'
   );
 }
@@ -1984,14 +3583,19 @@ async function addAdmin(e) {
       'set_admin_email',
       {
         p_email:
-          $('adminInviteEmail').value.trim()
+          $('adminInviteEmail')
+            .value
+            .trim()
       }
     );
 
   if (r.error) {
-    toast(r.error.message);
+    toast(
+      r.error.message
+    );
   } else {
-    $('adminInviteEmail').value = '';
+    $('adminInviteEmail')
+      .value = '';
 
     toast(
       'E-mail autorizado como administrador. Se ainda não tiver conta, poderá criar uma na tela de login.'
@@ -2002,7 +3606,9 @@ async function addAdmin(e) {
 }
 
 
-async function removeAdmin(id) {
+async function removeAdmin(
+  id
+) {
   if (
     !confirm(
       'Remover este administrador?'
@@ -2015,12 +3621,15 @@ async function removeAdmin(id) {
     await SB.rpc(
       'remove_admin',
       {
-        p_user: id
+        p_user:
+          id
       }
     );
 
   if (r.error) {
-    toast(r.error.message);
+    toast(
+      r.error.message
+    );
   } else {
     toast(
       'Administrador removido.'
@@ -2035,10 +3644,13 @@ async function saveMyPlayer(e) {
   e.preventDefault();
 
   const name =
-    $('adminPlayerName').value.trim();
+    $('adminPlayerName')
+      .value
+      .trim();
 
   const skill =
-    $('adminPlayerSkill').value;
+    $('adminPlayerSkill')
+      .value;
 
   if (
     !name ||
@@ -2066,29 +3678,44 @@ async function saveMyPlayer(e) {
   const payload = {
     user_id:
       session.user.id,
+
     name,
+
     skill_level:
       skill,
+
     skill_score:
       SKILLS[skill],
-    active: true
+
+    active:
+      true
   };
 
   const r =
     existing
       ? await SB
-          .from('players')
-          .update(payload)
+          .from(
+            'players'
+          )
+          .update(
+            payload
+          )
           .eq(
             'id',
             existing.id
           )
       : await SB
-          .from('players')
-          .insert(payload);
+          .from(
+            'players'
+          )
+          .insert(
+            payload
+          );
 
   if (r.error) {
-    toast(r.error.message);
+    toast(
+      r.error.message
+    );
   } else {
     toast(
       'Seu cadastro de jogador foi salvo.'
@@ -2100,6 +3727,10 @@ async function saveMyPlayer(e) {
   }
 }
 
+
+/* =========================================================
+   PLAYER
+========================================================= */
 
 async function loadPlayer(
   silent = false
@@ -2115,7 +3746,9 @@ async function loadPlayer(
 
   if (r.error) {
     if (!silent) {
-      setMode('landing');
+      setMode(
+        'landing'
+      );
 
       toast(
         'Link de jogador inválido ou expirado.'
@@ -2125,14 +3758,17 @@ async function loadPlayer(
     return false;
   }
 
-  playerData = r.data;
+  playerData =
+    r.data;
 
   localStorage.setItem(
     'volei_player_token',
     playerToken
   );
 
-  setMode('player');
+  setMode(
+    'player'
+  );
 
   renderPlayer();
 
@@ -2141,41 +3777,68 @@ async function loadPlayer(
 
 
 function renderPlayer() {
-  const d = playerData;
-  const p = d.player;
+  const d =
+    playerData;
 
-  $('playerWelcome').textContent =
+  const p =
+    d.player;
+
+  $('playerWelcome')
+    .textContent =
     `Olá, ${p.name}!`;
 
-  $('playerSkill').textContent =
-    `Nível: ${SKILL_LABEL[p.skill_level]}`;
+  $('playerSkill')
+    .textContent =
+    `Nível: ${
+      SKILL_LABEL[
+        p.skill_level
+      ]
+    }`;
 
-  $('playerGame').innerHTML =
+  $('playerGame')
+    .innerHTML =
     d.game
       ? `
         <b>
           Próximo jogo:
-          ${dateBR(d.game.game_date)}
+          ${dateBR(
+            d.game.game_date
+          )}
         </b>
 
         <br>
 
         <span class="muted">
-          ${d.game.teams_count} times
-          · ${esc(d.game.notes || '')}
+          ${
+            d.game.teams_count
+          } times
+          ·
+          ${esc(
+            d.game.notes ||
+              ''
+          )}
         </span>
       `
       : 'Nenhum jogo cadastrado ainda.';
 
   const myTeam =
-    (d.teams || []).find(
+    (
+      d.teams ||
+      []
+    ).find(
       t =>
-        (t.members || []).some(
-          m => m.id === p.id
+        (
+          t.members ||
+          []
+        ).some(
+          m =>
+            m.id ===
+            p.id
         )
     );
 
-  $('myTeam').innerHTML =
+  $('myTeam')
+    .innerHTML =
     myTeam
       ? `
         <div class="team">
@@ -2185,18 +3848,27 @@ function renderPlayer() {
             ${myTeam.team_no}
           </h3>
 
-          ${myTeam.members
-            .map(
-              m => `
-                <div class="person">
-                  ${esc(m.name)}
-                  <span>
-                    ${SKILL_LABEL[m.skill_level]}
-                  </span>
-                </div>
-              `
-            )
-            .join('')}
+          ${
+            myTeam.members
+              .map(
+                m => `
+                  <div class="person">
+                    ${esc(
+                      m.name
+                    )}
+
+                    <span>
+                      ${
+                        SKILL_LABEL[
+                          m.skill_level
+                        ]
+                      }
+                    </span>
+                  </div>
+                `
+              )
+              .join('')
+          }
 
         </div>
       `
@@ -2206,8 +3878,12 @@ function renderPlayer() {
         </div>
       `;
 
-  $('playerTeams').innerHTML =
-    (d.teams || [])
+  $('playerTeams')
+    .innerHTML =
+    (
+      d.teams ||
+      []
+    )
       .map(
         t => `
           <div class="team">
@@ -2216,23 +3892,35 @@ function renderPlayer() {
               Time ${t.team_no}
 
               <small>
-                ${t.total_skill} pontos
+                ${
+                  t.total_skill
+                } pontos
               </small>
             </h3>
 
-            ${t.members
-              .map(
-                m => `
-                  <div class="person">
-                    ${esc(m.name)}
+            ${
+              t.members
+                .map(
+                  m => `
+                    <div class="person">
 
-                    <span>
-                      ${SKILL_LABEL[m.skill_level]}
-                    </span>
-                  </div>
-                `
-              )
-              .join('')}
+                      ${esc(
+                        m.name
+                      )}
+
+                      <span>
+                        ${
+                          SKILL_LABEL[
+                            m.skill_level
+                          ]
+                        }
+                      </span>
+
+                    </div>
+                  `
+                )
+                .join('')
+            }
 
           </div>
         `
@@ -2244,25 +3932,35 @@ function renderPlayer() {
       </div>
     `;
 
-  $('playerVar').innerHTML =
-    (d.var || [])
+  $('playerVar')
+    .innerHTML =
+    (
+      d.var ||
+      []
+    )
       .map(
         v => `
           <div class="mediaRow">
 
             <div>
               <b>
-                ${esc(v.title)}
+                ${esc(
+                  v.title
+                )}
               </b>
 
               <small>
-                ${dateBR(v.game_date)}
+                ${dateBR(
+                  v.game_date
+                )}
               </small>
             </div>
 
             <a
               target="_blank"
-              href="${esc(v.url)}"
+              href="${esc(
+                v.url
+              )}"
             >
               Assistir
             </a>
@@ -2277,26 +3975,32 @@ function renderPlayer() {
       </div>
     `;
 
-  $('playerSpotify').innerHTML =
+  $('playerSpotify')
+    .innerHTML =
     d.settings.spotify_url
       ? `
         <a
           class="primaryLink"
           target="_blank"
-          href="${esc(d.settings.spotify_url)}"
+          href="${esc(
+            d.settings.spotify_url
+          )}"
         >
           🎵 Abrir playlist no Spotify
         </a>
       `
       : 'Playlist ainda não cadastrada.';
 
-  $('playerInstagram').innerHTML =
+  $('playerInstagram')
+    .innerHTML =
     d.settings.instagram_url
       ? `
         <a
           class="primaryLink"
           target="_blank"
-          href="${esc(d.settings.instagram_url)}"
+          href="${esc(
+            d.settings.instagram_url
+          )}"
         >
           📸 Instagram do grupo
         </a>
@@ -2307,7 +4011,9 @@ function renderPlayer() {
 
 function copyMyLink() {
   navigator.clipboard.writeText(
-    playerUrl(playerToken)
+    playerUrl(
+      playerToken
+    )
   );
 
   toast(
@@ -2319,29 +4025,44 @@ function copyMyLink() {
 function shareMyLink() {
   const text =
     `🏐 Meu acesso ao 99% INTRIGAS · 1% VÔLEI:\n` +
-    playerUrl(playerToken);
+    playerUrl(
+      playerToken
+    );
 
   window.open(
     'https://wa.me/?text=' +
-      encodeURIComponent(text),
+      encodeURIComponent(
+        text
+      ),
     '_blank'
   );
 }
 
 
+/* =========================================================
+   CADASTRO
+========================================================= */
+
 async function registerPlayer(e) {
   e.preventDefault();
 
   const token =
-    $('registerToken').value;
+    $('registerToken')
+      .value;
 
   const name =
-    $('regName').value.trim();
+    $('regName')
+      .value
+      .trim();
 
   const skill =
-    $('regSkill').value;
+    $('regSkill')
+      .value;
 
-  if (!name || !skill) {
+  if (
+    !name ||
+    !skill
+  ) {
     toast(
       'Informe nome e habilidade.'
     );
@@ -2353,14 +4074,22 @@ async function registerPlayer(e) {
     await SB.rpc(
       'register_player',
       {
-        p_invite_token: token,
-        p_name: name,
-        p_skill_level: skill
+        p_invite_token:
+          token,
+
+        p_name:
+          name,
+
+        p_skill_level:
+          skill
       }
     );
 
   if (r.error) {
-    toast(r.error.message);
+    toast(
+      r.error.message
+    );
+
     return;
   }
 
@@ -2373,16 +4102,22 @@ async function registerPlayer(e) {
   );
 
   $('registerResult')
-    .classList.remove('hidden');
+    .classList.remove(
+      'hidden'
+    );
 
-  $('myAccessLink').value =
-    playerUrl(playerToken);
+  $('myAccessLink')
+    .value =
+    playerUrl(
+      playerToken
+    );
 }
 
 
 function copyMyAccess() {
   navigator.clipboard.writeText(
-    $('myAccessLink').value
+    $('myAccessLink')
+      .value
   );
 
   toast(
@@ -2393,21 +4128,38 @@ function copyMyAccess() {
 
 function openMyAccess() {
   location.href =
-    $('myAccessLink').value;
+    $('myAccessLink')
+      .value;
 }
 
 
+/* =========================================================
+   AUTH
+========================================================= */
+
 SB.auth.onAuthStateChange(
-  async (event, s) => {
-    if (event === 'SIGNED_OUT') {
+  async (
+    event,
+    s
+  ) => {
+    if (
+      event ===
+      'SIGNED_OUT'
+    ) {
       session = null;
       admin = false;
 
-      setMode('landing');
+      setMode(
+        'landing'
+      );
     }
   }
 );
 
+
+/* =========================================================
+   LOAD
+========================================================= */
 
 window.addEventListener(
   'load',
