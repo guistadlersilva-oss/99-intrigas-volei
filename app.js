@@ -1347,6 +1347,10 @@ function nextFriday() {
 
 
 async function renderGames() {
+  /* =====================================================
+     FORMULÁRIO DO JOGO
+  ===================================================== */
+
   if ($('gameFormDate')) {
     $('gameFormDate').value =
       currentGame?.game_date ||
@@ -1365,6 +1369,11 @@ async function renderGames() {
       '';
   }
 
+
+  /* =====================================================
+     TÍTULO DO JOGO SELECIONADO
+  ===================================================== */
+
   if ($('currentGameTitle')) {
     $('currentGameTitle').textContent =
       currentGame
@@ -1373,6 +1382,106 @@ async function renderGames() {
           )}`
         : 'Nenhum jogo';
   }
+
+
+  /* =====================================================
+     LISTA DE JOGOS CADASTRADOS
+  ===================================================== */
+
+  if ($('gamesList')) {
+    if (!allGames.length) {
+
+      $('gamesList').innerHTML = `
+        <div class="notice">
+          Nenhum jogo cadastrado.
+        </div>
+      `;
+
+    } else {
+
+      $('gamesList').innerHTML = `
+        <table>
+          <thead>
+            <tr>
+              <th>Data</th>
+              <th>Times</th>
+              <th>Observações</th>
+              <th>Ações</th>
+            </tr>
+          </thead>
+
+          <tbody>
+
+            ${
+              allGames
+                .map(
+                  g => `
+                    <tr>
+
+                      <td>
+                        <b>
+                          ${dateBR(
+                            g.game_date
+                          )}
+                        </b>
+
+                        ${
+                          currentGame?.id === g.id
+                            ? `
+                              <br>
+                              <span class="badge paid">
+                                Selecionado
+                              </span>
+                            `
+                            : ''
+                        }
+                      </td>
+
+                      <td>
+                        ${g.teams_count || 0}
+                      </td>
+
+                      <td>
+                        ${
+                          esc(
+                            g.notes ||
+                            'Sem observações'
+                          )
+                        }
+                      </td>
+
+                      <td>
+
+                        <button
+                          onclick="selectAdminGame('${g.id}')"
+                        >
+                          Selecionar
+                        </button>
+
+                        <button
+                          onclick="deleteGame('${g.id}')"
+                        >
+                          🗑️ Excluir
+                        </button>
+
+                      </td>
+
+                    </tr>
+                  `
+                )
+                .join('')
+            }
+
+          </tbody>
+        </table>
+      `;
+    }
+  }
+
+
+  /* =====================================================
+     SELETOR DE JOGO
+  ===================================================== */
 
   if ($('gameSelectorAdmin')) {
     $('gameSelectorAdmin').innerHTML =
@@ -1397,9 +1506,12 @@ async function renderGames() {
         .join('');
   }
 
-  if (
-    $('gamePlayerList')
-  ) {
+
+  /* =====================================================
+     JOGADORES DO JOGO
+  ===================================================== */
+
+  if ($('gamePlayerList')) {
     $('gamePlayerList').innerHTML =
       currentGame
         ? await gamePlayerRows(
@@ -1412,11 +1524,17 @@ async function renderGames() {
         `;
   }
 
+
+  /* =====================================================
+     TIMES
+  ===================================================== */
+
   if (currentGame) {
     await renderTeamsAdmin();
+  } else if ($('teamsAdmin')) {
+    $('teamsAdmin').innerHTML = '';
   }
 }
-
 
 function selectAdminGame(id) {
   const game =
