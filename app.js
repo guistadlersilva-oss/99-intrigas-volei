@@ -616,74 +616,128 @@ function buildAdminNav() {
 }
 
 
-function showAdminPage(
-  id,
-  btn
-) {
-  document
-    .querySelectorAll(
-      '#adminNav button'
-    )
-    .forEach(x =>
-      x.classList.remove(
-        'active'
-      )
+function showAdminPage(id, btn) {
+  try {
+    // Remove o destaque de todos os botões
+    document
+      .querySelectorAll('#adminNav button')
+      .forEach(button => {
+        button.classList.remove('active');
+      });
+
+    // Destaca o botão clicado
+    if (btn) {
+      btn.classList.add('active');
+    }
+
+    // Esconde todas as páginas
+    document
+      .querySelectorAll('#adminPages .page')
+      .forEach(page => {
+        page.classList.remove('active');
+      });
+
+    // Mostra a página selecionada
+    const page = $(`a_${id}`);
+
+    if (!page) {
+      console.error(
+        'Página administrativa não encontrada:',
+        `a_${id}`
+      );
+
+      return;
+    }
+
+    page.classList.add('active');
+
+    // Carrega o conteúdo da página
+    if (id === 'dashboard') {
+      renderDashboard().catch(error => {
+        console.error(
+          'Erro ao carregar Dashboard:',
+          error
+        );
+      });
+    }
+
+    if (id === 'players') {
+      renderPlayers().catch(error => {
+        console.error(
+          'Erro ao carregar Jogadores:',
+          error
+        );
+      });
+    }
+
+    if (id === 'games') {
+      renderGames().catch(error => {
+        console.error(
+          'Erro ao carregar Jogos:',
+          error
+        );
+      });
+    }
+
+    if (id === 'payments') {
+      renderPayments().catch(error => {
+        console.error(
+          'Erro ao carregar Pagamentos:',
+          error
+        );
+        toast(
+          'Erro ao carregar pagamentos. Veja o console.'
+        );
+      });
+    }
+
+    if (id === 'cash') {
+      renderCash().catch(error => {
+        console.error(
+          'Erro ao carregar Caixa:',
+          error
+        );
+        toast(
+          'Erro ao carregar caixa. Veja o console.'
+        );
+      });
+    }
+
+    if (id === 'media') {
+      renderMedia().catch(error => {
+        console.error(
+          'Erro ao carregar VAR / Playlist:',
+          error
+        );
+        toast(
+          'Erro ao carregar VAR / Playlist.'
+        );
+      });
+    }
+
+    if (id === 'settings') {
+      renderSettings().catch(error => {
+        console.error(
+          'Erro ao carregar Administração:',
+          error
+        );
+        toast(
+          'Erro ao carregar Administração.'
+        );
+      });
+    }
+
+  } catch (error) {
+    console.error(
+      'Erro na navegação administrativa:',
+      error
     );
 
-  if (btn) {
-    btn.classList.add(
-      'active'
+    toast(
+      'Erro ao abrir esta área.'
     );
-  }
-
-  document
-    .querySelectorAll(
-      '#adminPages .page'
-    )
-    .forEach(x =>
-      x.classList.remove(
-        'active'
-      )
-    );
-
-  const page =
-    $(`a_${id}`);
-
-  if (page) {
-    page.classList.add(
-      'active'
-    );
-  }
-
-  if (id === 'dashboard') {
-    renderDashboard();
-  }
-
-  if (id === 'players') {
-    renderPlayers();
-  }
-
-  if (id === 'games') {
-    renderGames();
-  }
-
-  if (id === 'payments') {
-    renderPayments();
-  }
-
-  if (id === 'cash') {
-    renderCash();
-  }
-
-  if (id === 'media') {
-    renderMedia();
-  }
-
-  if (id === 'settings') {
-    renderSettings();
   }
 }
-
 
 /* =========================================================
    DASHBOARD
