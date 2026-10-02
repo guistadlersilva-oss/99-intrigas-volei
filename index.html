@@ -1,165 +1,2107 @@
 <!doctype html>
 <html lang="pt-BR">
 <head>
-<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
 <title>99% INTRIGAS · 1% VÔLEI</title>
+
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="config.js"></script>
+
 <style>
-:root{--bg:#08080c;--panel:#121119;--panel2:#17151f;--line:#2b2634;--txt:#f6f2fb;--muted:#aaa3b4;--p:#9147ff;--p2:#c18cff;--ok:#4dde8b;--warn:#ffd166;--danger:#ff6b7a}
-*{box-sizing:border-box}body{margin:0;background:radial-gradient(circle at top,#291437,#08080c 45%);color:var(--txt);font:15px Inter,Segoe UI,Arial,sans-serif}button,input,select,textarea{font:inherit}button{cursor:pointer;border:1px solid var(--line);background:var(--panel);color:var(--txt);padding:10px 14px;border-radius:11px;font-weight:700}button:hover{border-color:var(--p)}button.primary,.primaryLink{background:var(--p);border-color:var(--p);color:#fff}.hidden{display:none!important}.muted{color:var(--muted)}.small{font-size:12px}.row{display:flex;gap:9px;align-items:center;flex-wrap:wrap}.between{justify-content:space-between}.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}.grid2{display:grid;grid-template-columns:repeat(2,1fr);gap:14px}.card{background:rgba(18,17,25,.96);border:1px solid var(--line);border-radius:17px;padding:18px}.statCards{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}.statCard{background:var(--panel);border:1px solid var(--line);border-radius:15px;padding:16px}.statCard span{display:block;color:var(--muted);font-size:12px}.statCard b{display:block;font-size:25px;margin-top:7px}.badge{display:inline-block;padding:5px 9px;border-radius:99px;font-size:11px;background:#292431;margin-left:5px}.paid{color:#7ef0a9;background:#123a26}.pending{color:#ffd978;background:#453010}.admin{color:#d5b1ff;background:#2d1d42}.login{min-height:100vh;display:grid;place-items:center;padding:20px}.loginbox{width:min(540px,100%);padding:30px;background:#111017;border:1px solid var(--line);border-radius:24px}.logo{width:88px;height:88px;border-radius:20px;object-fit:cover}.brand{display:flex;align-items:center;gap:11px}.brand img{width:52px;height:52px;border-radius:13px}.brand b{font-size:18px}.brand small{display:block;color:var(--muted)}.field{display:grid;gap:6px;margin:10px 0}label{font-size:13px;color:var(--muted)}input,select,textarea{width:100%;padding:11px 12px;border-radius:10px;border:1px solid var(--line);background:#0b0b10;color:var(--txt)}textarea{min-height:80px}.notice{border-left:4px solid var(--p);padding:11px 13px;background:#17121d;border-radius:8px;margin:10px 0}header{position:sticky;top:0;z-index:20;background:#09090de8;backdrop-filter:blur(12px);border-bottom:1px solid var(--line);padding:12px 4%;display:flex;justify-content:space-between;align-items:center}.pageWrap{max-width:1220px;margin:auto;padding:22px 4% 60px}.hero{padding:25px;border-radius:20px;border:1px solid var(--line);background:linear-gradient(135deg,#2b1740,#121119);margin-bottom:18px}.hero h1{margin:0 0 7px;font-size:32px}.tabs{display:flex;gap:7px;flex-wrap:wrap;padding:11px 4%;border-bottom:1px solid var(--line);background:#0a090e}.tabs button.active{background:var(--p);border-color:var(--p)}.page{display:none}.page.active{display:block}table{width:100%;border-collapse:collapse}th,td{text-align:left;padding:11px 8px;border-bottom:1px solid var(--line);vertical-align:middle}.tableWrap{overflow:auto}.teamGrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px}.team{background:#17131e;border:1px solid var(--line);border-radius:15px;padding:14px}.team h3{margin:0 0 9px}.team h3 small{color:var(--muted);font-weight:400}.person{display:flex;justify-content:space-between;gap:8px;padding:8px 0;border-bottom:1px solid #2a2530}.person:last-child{border-bottom:0}.person span{color:var(--muted);font-size:12px}.mediaRow{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:12px 0;border-bottom:1px solid var(--line)}.mediaRow small{display:block;color:var(--muted);margin-top:4px}.primaryLink{display:inline-block;padding:11px 14px;border-radius:10px;text-decoration:none}.toast{position:fixed;right:20px;bottom:20px;background:#211b29;border:1px solid var(--p);padding:12px 15px;border-radius:12px;z-index:99;box-shadow:0 12px 35px #0008}.linkBox{display:flex;gap:8px}.linkBox input{flex:1}.footer{text-align:center;color:var(--muted);padding:20px}.danger{border-color:#63303a}.sectionTitle{margin-top:0}.check{width:auto}.split{display:grid;grid-template-columns:1fr 1fr;gap:12px}@media(max-width:800px){.grid,.grid2,.split{grid-template-columns:1fr}.statCards{grid-template-columns:1fr 1fr}.hero h1{font-size:26px}header{padding:10px 3%}.pageWrap{padding:18px 3%}.tabs{padding:10px 3%}}@media(max-width:480px){.statCards{grid-template-columns:1fr}.loginbox{padding:22px}}
+:root{
+  --bg:#08080c;
+  --panel:#121119;
+  --panel2:#17151f;
+  --line:#2b2634;
+  --txt:#f6f2fb;
+  --muted:#aaa3b4;
+  --p:#9147ff;
+  --p2:#c18cff;
+  --ok:#4dde8b;
+  --warn:#ffd166;
+  --danger:#ff6b7a;
+}
+
+*{box-sizing:border-box}
+
+body{
+  margin:0;
+  background:radial-gradient(circle at top,#291437,#08080c 45%);
+  color:var(--txt);
+  font:15px Inter,Segoe UI,Arial,sans-serif;
+}
+
+button,input,select,textarea{font:inherit}
+
+button{
+  cursor:pointer;
+  border:1px solid var(--line);
+  background:var(--panel);
+  color:var(--txt);
+  padding:10px 14px;
+  border-radius:11px;
+  font-weight:700;
+}
+
+button:hover{
+  border-color:var(--p);
+}
+
+button.primary,
+.primaryLink{
+  background:var(--p);
+  border-color:var(--p);
+  color:#fff;
+}
+
+.hidden{display:none!important}
+
+.muted{color:var(--muted)}
+.small{font-size:12px}
+
+.row{
+  display:flex;
+  gap:9px;
+  align-items:center;
+  flex-wrap:wrap;
+}
+
+.between{justify-content:space-between}
+
+.grid{
+  display:grid;
+  grid-template-columns:repeat(3,1fr);
+  gap:14px;
+}
+
+.grid2{
+  display:grid;
+  grid-template-columns:repeat(2,1fr);
+  gap:14px;
+}
+
+.card{
+  background:rgba(18,17,25,.96);
+  border:1px solid var(--line);
+  border-radius:17px;
+  padding:18px;
+}
+
+.statCards{
+  display:grid;
+  grid-template-columns:repeat(4,1fr);
+  gap:12px;
+}
+
+.statCard{
+  background:var(--panel);
+  border:1px solid var(--line);
+  border-radius:15px;
+  padding:16px;
+}
+
+.statCard span{
+  display:block;
+  color:var(--muted);
+  font-size:12px;
+}
+
+.statCard b{
+  display:block;
+  font-size:25px;
+  margin-top:7px;
+}
+
+.badge{
+  display:inline-block;
+  padding:5px 9px;
+  border-radius:99px;
+  font-size:11px;
+  background:#292431;
+  margin-left:5px;
+}
+
+.paid{
+  color:#7ef0a9;
+  background:#123a26;
+}
+
+.pending{
+  color:#ffd978;
+  background:#453010;
+}
+
+.admin{
+  color:#d5b1ff;
+  background:#2d1d42;
+}
+
+.login{
+  min-height:100vh;
+  display:grid;
+  place-items:center;
+  padding:20px;
+}
+
+.loginbox{
+  width:min(540px,100%);
+  padding:30px;
+  background:#111017;
+  border:1px solid var(--line);
+  border-radius:24px;
+}
+
+.logo{
+  width:88px;
+  height:88px;
+  border-radius:20px;
+  object-fit:cover;
+}
+
+.brand{
+  display:flex;
+  align-items:center;
+  gap:11px;
+}
+
+.brand img{
+  width:52px;
+  height:52px;
+  border-radius:13px;
+}
+
+.brand b{
+  font-size:18px;
+}
+
+.brand small{
+  display:block;
+  color:var(--muted);
+}
+
+.field{
+  display:grid;
+  gap:6px;
+  margin:10px 0;
+}
+
+label{
+  font-size:13px;
+  color:var(--muted);
+}
+
+input,select,textarea{
+  width:100%;
+  padding:11px 12px;
+  border-radius:10px;
+  border:1px solid var(--line);
+  background:#0b0b10;
+  color:var(--txt);
+}
+
+textarea{
+  min-height:80px;
+}
+
+.notice{
+  border-left:4px solid var(--p);
+  padding:11px 13px;
+  background:#17121d;
+  border-radius:8px;
+  margin:10px 0;
+}
+
+header{
+  position:sticky;
+  top:0;
+  z-index:20;
+  background:#09090de8;
+  backdrop-filter:blur(12px);
+  border-bottom:1px solid var(--line);
+  padding:12px 4%;
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+}
+
+.pageWrap{
+  max-width:1220px;
+  margin:auto;
+  padding:22px 4% 60px;
+}
+
+.hero{
+  padding:25px;
+  border-radius:20px;
+  border:1px solid var(--line);
+  background:linear-gradient(135deg,#2b1740,#121119);
+  margin-bottom:18px;
+}
+
+.hero h1{
+  margin:0 0 7px;
+  font-size:32px;
+}
+
+.tabs{
+  display:flex;
+  gap:7px;
+  flex-wrap:wrap;
+  padding:11px 4%;
+  border-bottom:1px solid var(--line);
+  background:#0a090e;
+}
+
+.tabs button.active{
+  background:var(--p);
+  border-color:var(--p);
+}
+
+.page{
+  display:none;
+}
+
+.page.active{
+  display:block;
+}
+
+table{
+  width:100%;
+  border-collapse:collapse;
+}
+
+th,td{
+  text-align:left;
+  padding:11px 8px;
+  border-bottom:1px solid var(--line);
+  vertical-align:middle;
+}
+
+.tableWrap{
+  overflow:auto;
+}
+
+.teamGrid{
+  display:grid;
+  grid-template-columns:repeat(auto-fit,minmax(220px,1fr));
+  gap:12px;
+}
+
+.team{
+  background:#17131e;
+  border:1px solid var(--line);
+  border-radius:15px;
+  padding:14px;
+}
+
+.team h3{
+  margin:0 0 9px;
+}
+
+.team h3 small{
+  color:var(--muted);
+  font-weight:400;
+}
+
+.person{
+  display:flex;
+  justify-content:space-between;
+  gap:8px;
+  padding:8px 0;
+  border-bottom:1px solid #2a2530;
+}
+
+.person:last-child{
+  border-bottom:0;
+}
+
+.person span{
+  color:var(--muted);
+  font-size:12px;
+}
+
+.mediaRow{
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  gap:12px;
+  padding:12px 0;
+  border-bottom:1px solid var(--line);
+}
+
+.mediaRow small{
+  display:block;
+  color:var(--muted);
+  margin-top:4px;
+}
+
+.primaryLink{
+  display:inline-block;
+  padding:11px 14px;
+  border-radius:10px;
+  text-decoration:none;
+}
+
+.toast{
+  position:fixed;
+  right:20px;
+  bottom:20px;
+  background:#211b29;
+  border:1px solid var(--p);
+  padding:12px 15px;
+  border-radius:12px;
+  z-index:99;
+  box-shadow:0 12px 35px #0008;
+}
+
+.linkBox{
+  display:flex;
+  gap:8px;
+}
+
+.linkBox input{
+  flex:1;
+}
+
+.footer{
+  text-align:center;
+  color:var(--muted);
+  padding:20px;
+}
+
+.danger{
+  border-color:#63303a;
+}
+
+.sectionTitle{
+  margin-top:0;
+}
+
+.check{
+  width:auto;
+}
+
+.split{
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:12px;
+}
+
+.actions{
+  display:flex;
+  gap:6px;
+  flex-wrap:wrap;
+}
+
+.btnSmall{
+  padding:7px 10px;
+  font-size:12px;
+}
+
+.btnDanger{
+  color:#ff9aa5;
+  border-color:#63303a;
+}
+
+.btnOk{
+  color:#7ef0a9;
+}
+
+.btnWarn{
+  color:#ffd978;
+}
+
+.empty{
+  padding:25px;
+  text-align:center;
+  color:var(--muted);
+}
+
+.sectionHeader{
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  gap:12px;
+  flex-wrap:wrap;
+  margin-bottom:12px;
+}
+
+@media(max-width:800px){
+  .grid,.grid2,.split{
+    grid-template-columns:1fr;
+  }
+
+  .statCards{
+    grid-template-columns:1fr 1fr;
+  }
+
+  .hero h1{
+    font-size:26px;
+  }
+
+  header{
+    padding:10px 3%;
+  }
+
+  .pageWrap{
+    padding:18px 3%;
+  }
+
+  .tabs{
+    padding:10px 3%;
+  }
+}
+
+@media(max-width:480px){
+  .statCards{
+    grid-template-columns:1fr;
+  }
+
+  .loginbox{
+    padding:22px;
+  }
+
+  .brand b{
+    font-size:15px;
+  }
+}
 </style>
 </head>
+
 <body>
 
+<!-- ========================================================= -->
+<!-- LANDING -->
+<!-- ========================================================= -->
+
 <div id="landing" class="login">
+
   <div class="loginbox">
+
     <img src="logo.png" class="logo" alt="99% INTRIGAS">
+
     <h1>99% INTRIGAS · 1% VÔLEI</h1>
-    <p class="muted">Sistema privado do grupo.</p>
-    <div class="notice">🏐 Para jogador: use o link de cadastro enviado pelo administrador.<br>🔐 Para administrador: entre com seu login.</div>
-    <button class="primary" onclick="setMode('adminLogin')">Entrar como administrador</button>
-    <p class="small muted">O jogador não precisa de e-mail, senha ou WhatsApp cadastrado.</p>
+
+    <p class="muted">
+      Sistema privado do grupo.
+    </p>
+
+    <div class="notice">
+      🏐 <b>Jogador:</b> use o link de acesso enviado pelo administrador.
+      <br><br>
+      🔐 <b>Administrador:</b> entre com seu login.
+    </div>
+
+    <button class="primary" onclick="setMode('adminLogin')">
+      Entrar como administrador
+    </button>
+
+    <p class="small muted">
+      O jogador não precisa de e-mail, senha ou WhatsApp cadastrado.
+    </p>
+
   </div>
+
 </div>
+
+
+<!-- ========================================================= -->
+<!-- LOGIN ADMIN -->
+<!-- ========================================================= -->
 
 <div id="adminLogin" class="login hidden">
+
   <div class="loginbox">
-    <div class="brand"><img src="logo.png"><div><b>Área do administrador</b><small>99% INTRIGAS · 1% VÔLEI</small></div></div>
+
+    <div class="brand">
+      <img src="logo.png">
+
+      <div>
+        <b>Área do administrador</b>
+        <small>99% INTRIGAS · 1% VÔLEI</small>
+      </div>
+    </div>
+
     <h2>Login</h2>
+
     <form onsubmit="adminLogin(event)">
-      <div class="field"><label>E-mail</label><input id="adminEmail" type="email" required></div>
-      <div class="field"><label>Senha</label><input id="adminPassword" type="password" required></div>
-      <button class="primary">Entrar</button>
+
+      <div class="field">
+        <label>E-mail</label>
+        <input id="adminEmail" type="email" required>
+      </div>
+
+      <div class="field">
+        <label>Senha</label>
+        <input id="adminPassword" type="password" required>
+      </div>
+
+      <button class="primary">
+        Entrar
+      </button>
+
     </form>
+
     <hr style="border-color:var(--line);margin:22px 0">
-    <details><summary>Primeiro acesso / novo administrador</summary>
-      <p class="small muted">O e-mail precisa ter sido autorizado por um administrador. Para o primeiro administrador, faça o cadastro do usuário no Supabase e execute o INSERT indicado no schema.sql.</p>
+
+    <details>
+
+      <summary>Primeiro acesso / novo administrador</summary>
+
+      <p class="small muted">
+        O e-mail precisa ter sido autorizado por um administrador.
+      </p>
+
       <form onsubmit="adminSignup(event)">
-        <div class="field"><label>E-mail autorizado</label><input id="newAdminEmail" type="email" required></div>
-        <div class="field"><label>Criar senha</label><input id="newAdminPassword" type="password" minlength="6" required></div>
-        <button>Criar conta</button>
+
+        <div class="field">
+          <label>E-mail autorizado</label>
+          <input id="newAdminEmail" type="email" required>
+        </div>
+
+        <div class="field">
+          <label>Criar senha</label>
+          <input id="newAdminPassword" type="password" minlength="6" required>
+        </div>
+
+        <button>
+          Criar conta
+        </button>
+
       </form>
+
     </details>
-    <br><button onclick="setMode('landing')">Voltar</button>
+
+    <br>
+
+    <button onclick="setMode('landing')">
+      Voltar
+    </button>
+
   </div>
+
 </div>
+
+
+<!-- ========================================================= -->
+<!-- CADASTRO JOGADOR -->
+<!-- ========================================================= -->
 
 <div id="registerApp" class="login hidden">
+
   <div class="loginbox">
+
     <img src="logo.png" class="logo" alt="">
+
     <h1>Cadastro do jogador</h1>
-    <p class="muted">Você só precisa informar seu nome e seu nível de habilidade.</p>
+
+    <p class="muted">
+      Informe seu nome e seu nível de habilidade.
+    </p>
+
     <form onsubmit="registerPlayer(event)">
+
       <input id="registerToken" type="hidden">
-      <div class="field"><label>Seu nome</label><input id="regName" maxlength="80" required placeholder="Ex.: Guilherme"></div>
-      <div class="field"><label>Nível de habilidade</label>
-        <select id="regSkill" required>
-          <option value="">Selecione</option><option value="iniciante">Iniciante</option><option value="basico">Básico</option><option value="intermediario">Intermediário</option><option value="avancado">Avançado</option><option value="expert">Expert</option>
-        </select>
+
+      <div class="field">
+        <label>Seu nome</label>
+        <input
+          id="regName"
+          maxlength="80"
+          required
+          placeholder="Ex.: Guilherme"
+        >
       </div>
-      <button class="primary">Cadastrar</button>
+
+      <div class="field">
+
+        <label>Nível de habilidade</label>
+
+        <select id="regSkill" required>
+
+          <option value="">
+            Selecione
+          </option>
+
+          <option value="iniciante">
+            Iniciante
+          </option>
+
+          <option value="basico">
+            Básico
+          </option>
+
+          <option value="intermediario">
+            Intermediário
+          </option>
+
+          <option value="avancado">
+            Avançado
+          </option>
+
+          <option value="expert">
+            Expert
+          </option>
+
+        </select>
+
+      </div>
+
+      <button class="primary">
+        Cadastrar
+      </button>
+
     </form>
+
+
     <div id="registerResult" class="hidden notice">
+
       <b>Cadastro realizado!</b>
-      <p>Guarde seu link pessoal para consultar os vídeos, links e seu time.</p>
-      <div class="linkBox"><input id="myAccessLink" readonly><button onclick="copyMyAccess()">Copiar</button></div>
-      <br><button class="primary" onclick="openMyAccess()">Entrar no meu acesso</button>
+
+      <p>
+        Guarde seu link pessoal para consultar os jogos,
+        vídeos e seu time.
+      </p>
+
+      <div class="linkBox">
+
+        <input id="myAccessLink" readonly>
+
+        <button onclick="copyMyAccess()">
+          Copiar
+        </button>
+
+      </div>
+
+      <br>
+
+      <button class="primary" onclick="openMyAccess()">
+        Entrar no meu acesso
+      </button>
+
     </div>
+
   </div>
+
 </div>
+
+
+<!-- ========================================================= -->
+<!-- ÁREA DO JOGADOR -->
+<!-- ========================================================= -->
 
 <div id="playerApp" class="hidden">
-<header>
-  <div class="brand"><img src="logo.png"><div><b>99% INTRIGAS · 1% VÔLEI</b><small>Área do jogador</small></div></div>
-  <div class="row"><button onclick="copyMyLink()">Copiar meu acesso</button><button onclick="shareMyLink()">WhatsApp</button></div>
-</header>
-<main class="pageWrap">
-  <section class="hero"><h1 id="playerWelcome">Olá!</h1><p id="playerSkill" class="muted"></p></section>
-  <div class="grid2">
-    <div class="card"><h2 class="sectionTitle">📅 Próximo jogo</h2><div id="playerGame"></div></div>
-    <div class="card"><h2 class="sectionTitle">🏐 Meu time</h2><div id="myTeam"></div></div>
-  </div>
-  <div class="card" style="margin-top:14px"><h2 class="sectionTitle">🏆 Times do jogo</h2><div id="playerTeams" class="teamGrid"></div></div>
-  <div class="grid2" style="margin-top:14px">
-    <div class="card"><h2>🎥 Vídeos / VAR</h2><div id="playerVar"></div></div>
-    <div class="card"><h2>🎵 Playlist</h2><div id="playerSpotify"></div><br><div id="playerInstagram"></div></div>
-  </div>
-  <div class="footer">99% INTRIGAS · 1% VÔLEI</div>
-</main>
+
+  <header>
+
+    <div class="brand">
+
+      <img src="logo.png">
+
+      <div>
+        <b>99% INTRIGAS · 1% VÔLEI</b>
+        <small>Área do jogador</small>
+      </div>
+
+    </div>
+
+    <div class="row">
+
+      <button onclick="copyMyLink()">
+        Copiar meu acesso
+      </button>
+
+      <button onclick="shareMyLink()">
+        WhatsApp
+      </button>
+
+    </div>
+
+  </header>
+
+
+  <main class="pageWrap">
+
+    <section class="hero">
+
+      <h1 id="playerWelcome">
+        Olá!
+      </h1>
+
+      <p id="playerSkill" class="muted"></p>
+
+    </section>
+
+
+    <div class="grid2">
+
+      <div class="card">
+
+        <h2 class="sectionTitle">
+          📅 Próximo jogo
+        </h2>
+
+        <div id="playerGame"></div>
+
+      </div>
+
+
+      <div class="card">
+
+        <h2 class="sectionTitle">
+          🏐 Meu time
+        </h2>
+
+        <div id="myTeam"></div>
+
+      </div>
+
+    </div>
+
+
+    <div class="card" style="margin-top:14px">
+
+      <h2 class="sectionTitle">
+        🏆 Times do jogo
+      </h2>
+
+      <div id="playerTeams" class="teamGrid"></div>
+
+    </div>
+
+
+    <div class="grid2" style="margin-top:14px">
+
+      <div class="card">
+
+        <h2>
+          🎥 Vídeos / VAR
+        </h2>
+
+        <div id="playerVar"></div>
+
+      </div>
+
+
+      <div class="card">
+
+        <h2>
+          🎵 Playlist
+        </h2>
+
+        <div id="playerSpotify"></div>
+
+        <br>
+
+        <div id="playerInstagram"></div>
+
+      </div>
+
+    </div>
+
+
+    <div class="footer">
+      99% INTRIGAS · 1% VÔLEI
+    </div>
+
+  </main>
+
 </div>
+
+
+<!-- ========================================================= -->
+<!-- ÁREA ADMINISTRATIVA -->
+<!-- ========================================================= -->
 
 <div id="adminApp" class="hidden">
-<header>
-  <div class="brand"><img src="logo.png"><div><b>99% INTRIGAS · 1% VÔLEI</b><small>Administrador: <span id="adminName"></span></small></div></div>
-  <button onclick="logoutAdmin()">Sair</button>
-</header>
-<nav id="adminNav" class="tabs"></nav>
-<main id="adminPages" class="pageWrap">
-<section id="a_dashboard" class="page active">
-  <div class="hero"><h1>Painel do grupo</h1><p class="muted">Aqui você controla jogadores, times, pagamentos, caixa e conteúdos.</p></div>
-  <div id="dashCards" class="statCards"></div><div id="dashInfo" class="card" style="margin-top:14px"></div>
-</section>
 
-<section id="a_players" class="page">
-  <div class="row between"><h1>🏐 Jogadores</h1><span id="playerCount" class="muted"></span></div>
-  <div class="card tableWrap"><table><thead><tr><th>Nome</th><th>Habilidade</th><th>Pontos</th><th>Status</th><th>Ações</th></tr></thead><tbody id="playersTable"></tbody></table></div>
-</section>
+  <header>
 
-<section id="a_games" class="page">
-  <div class="hero"><h1>📅 Jogo e times</h1><p>O administrador define quem vai jogar. O sorteio usa o nível de habilidade para equilibrar os times.</p></div>
-  <div class="card">
-    <form onsubmit="saveGame(event)" class="grid2">
-      <div class="field"><label>Data</label><input id="gameFormDate" type="date" required></div>
-      <div class="field"><label>Quantidade de times</label><select id="gameTeams"><option>2</option><option>3</option><option>4</option></select></div>
-      <div class="field" style="grid-column:1/-1"><label>Observações</label><textarea id="gameNotes"></textarea></div>
-      <div><button class="primary">Salvar jogo</button></div>
-    </form>
-  </div>
-  <div class="card" style="margin-top:14px"><h2 id="currentGameTitle">Jogo</h2><div id="gamePlayerList"></div></div>
-  <div class="row" style="margin:14px 0"><button class="primary" onclick="drawTeams()">🎲 Sortear times equilibrados</button><button onclick="sendTeamsWhatsApp()">📲 Enviar times no WhatsApp</button></div>
-  <div id="teamsAdmin" class="teamGrid"></div>
-</section>
+    <div class="brand">
 
-<section id="a_payments" class="page">
-  <div class="hero"><h1>💰 Pagamentos</h1><p>Competência atual: <b id="paymentMonth"></b>. O histórico permanece salvo mês a mês.</p></div>
-  <div class="card"><h2>Mensalidades</h2><div class="tableWrap"><table><thead><tr><th>Jogador</th><th>Valor</th><th>Status</th><th></th></tr></thead><tbody id="monthlyTable"></tbody></table></div></div>
-  <div class="card" style="margin-top:14px"><h2>Individual — próximo jogo</h2><div class="tableWrap"><table><thead><tr><th>Jogador</th><th>Valor</th><th>Status</th><th></th></tr></thead><tbody id="unitTable"></tbody></table></div></div>
-</section>
+      <img src="logo.png">
 
-<section id="a_cash" class="page">
-  <h1>🏦 Caixa</h1><div id="cashStats" class="statCards"></div>
-  <div class="card" style="margin-top:14px"><h2>Registrar saída</h2><form id="expenseForm" onsubmit="addExpense(event)" class="grid2">
-    <div class="field"><label>Categoria</label><select id="expenseCategory"><option>Churrasco</option><option>Material</option><option>Quadra</option><option>Mensalidade</option><option>Outro</option></select></div>
-    <div class="field"><label>Valor</label><input id="expenseAmount" type="number" step="0.01" min="0.01" required></div>
-    <div class="field"><label>Descrição</label><input id="expenseDescription" required></div><div><button class="primary">Registrar saída</button></div>
-  </form></div>
-  <div class="card tableWrap" style="margin-top:14px"><table><thead><tr><th>Data</th><th>Tipo</th><th>Categoria</th><th>Descrição</th><th>Valor</th></tr></thead><tbody id="cashTable"></tbody></table></div>
-</section>
+      <div>
 
-<section id="a_media" class="page">
-  <h1>🎥 VAR / 🎵 Playlist</h1>
-  <div class="grid2">
-    <div class="card"><h2>Adicionar vídeo</h2><form id="varForm" onsubmit="addVar(event)">
-      <div class="field"><label>Título</label><input id="varTitle" required></div><div class="field"><label>Link</label><input id="varUrl" type="url" required></div><div class="field"><label>Data</label><input id="varDate" type="date"></div><button class="primary">Adicionar</button>
-    </form><hr style="border-color:var(--line)"><div id="varAdminList"></div></div>
-    <div class="card"><h2>Spotify</h2><form onsubmit="saveSpotify(event)"><div class="field"><label>URL da playlist</label><input id="spotifyInput" type="url"></div><button class="primary">Salvar playlist</button></form></div>
-  </div>
-</section>
+        <b>
+          99% INTRIGAS · 1% VÔLEI
+        </b>
 
-<section id="a_settings" class="page">
-  <h1>⚙️ Administração</h1>
-  <div class="card"><h2>Seu cadastro de jogador</h2><p class="muted">O administrador também é jogador e pode participar do sorteio.</p>
-    <form onsubmit="saveMyPlayer(event)" class="grid2"><div class="field"><label>Seu nome</label><input id="adminPlayerName" required></div><div class="field"><label>Sua habilidade</label><select id="adminPlayerSkill"><option value="iniciante">Iniciante</option><option value="basico">Básico</option><option value="intermediario">Intermediário</option><option value="avancado">Avançado</option><option value="expert">Expert</option></select></div><div><button class="primary">Salvar meu cadastro</button></div></form>
-  </div>
-  <div class="card" style="margin-top:14px"><h2>Valores e Instagram</h2><form onsubmit="saveSettings(event)" class="grid2"><div class="field"><label>Mensalidade</label><input id="monthlyFee" type="number" step="0.01"></div><div class="field"><label>Individual</label><input id="unitFee" type="number" step="0.01"></div><div class="field"><label>Instagram</label><input id="instagramUrl" type="url"></div><div><button class="primary">Salvar</button></div></form></div>
-  <div class="card" style="margin-top:14px"><h2>🔗 Link de cadastro dos jogadores</h2><p class="muted">Gere este link e envie no grupo do WhatsApp. O jogador só informa nome e habilidade.</p><div class="linkBox"><input id="registerLink" readonly><button onclick="copyRegister()">Copiar</button><button onclick="sendRegisterWhatsApp()">WhatsApp</button></div><br><button class="danger" onclick="rotateInvite()">Gerar novo link (invalida o anterior)</button></div>
-  <div class="card" style="margin-top:14px"><h2>👑 Administradores</h2><p class="muted">Cada administrador tem seu próprio login.</p><form onsubmit="addAdmin(event)" class="row"><input id="adminInviteEmail" type="email" placeholder="e-mail do novo administrador" required style="max-width:500px"><button class="primary">Autorizar administrador</button></form><div class="tableWrap" style="margin-top:12px"><table><thead><tr><th>E-mail</th><th></th><th></th></tr></thead><tbody id="adminsList"></tbody></table></div></div>
-</section>
-</main>
+        <small>
+          Administrador:
+          <span id="adminName"></span>
+        </small>
+
+      </div>
+
+    </div>
+
+    <div class="row">
+
+      <button onclick="goPlayerFromAdmin()">
+        👤 Meu acesso de jogador
+      </button>
+
+      <button onclick="logoutAdmin()">
+        Sair
+      </button>
+
+    </div>
+
+  </header>
+
+
+  <!-- MENU ADMIN -->
+
+  <nav id="adminNav" class="tabs"></nav>
+
+
+  <main id="adminPages" class="pageWrap">
+
+
+    <!-- ===================================================== -->
+    <!-- DASHBOARD -->
+    <!-- ===================================================== -->
+
+    <section id="a_dashboard" class="page active">
+
+      <div class="hero">
+
+        <h1>
+          Painel do grupo
+        </h1>
+
+        <p class="muted">
+          Controle jogadores, jogos, times, pagamentos,
+          caixa e conteúdos do grupo.
+        </p>
+
+      </div>
+
+      <div id="dashCards" class="statCards"></div>
+
+      <div
+        id="dashInfo"
+        class="card"
+        style="margin-top:14px"
+      ></div>
+
+    </section>
+
+
+    <!-- ===================================================== -->
+    <!-- JOGADORES -->
+    <!-- ===================================================== -->
+
+    <section id="a_players" class="page">
+
+      <div class="sectionHeader">
+
+        <div>
+
+          <h1>
+            🏐 Jogadores
+          </h1>
+
+          <span
+            id="playerCount"
+            class="muted"
+          ></span>
+
+        </div>
+
+        <button
+          class="primary"
+          onclick="addPlayer()"
+        >
+          + Adicionar jogador
+        </button>
+
+      </div>
+
+
+      <div class="card tableWrap">
+
+        <table>
+
+          <thead>
+
+            <tr>
+              <th>Nome</th>
+              <th>Habilidade</th>
+              <th>Pontos</th>
+              <th>WhatsApp</th>
+              <th>Status</th>
+              <th>Ações</th>
+            </tr>
+
+          </thead>
+
+          <tbody id="playersTable"></tbody>
+
+        </table>
+
+      </div>
+
+    </section>
+
+
+    <!-- ===================================================== -->
+    <!-- JOGOS -->
+    <!-- ===================================================== -->
+
+    <section id="a_games" class="page">
+
+      <div class="hero">
+
+        <h1>
+          📅 Jogos e times
+        </h1>
+
+        <p>
+          Crie e edite jogos, escolha os jogadores presentes
+          e faça o sorteio equilibrado.
+        </p>
+
+      </div>
+
+
+      <div class="card">
+
+        <div class="sectionHeader">
+
+          <h2>
+            Criar / editar jogo
+          </h2>
+
+          <button
+            onclick="newGameForm()"
+          >
+            + Novo jogo
+          </button>
+
+        </div>
+
+
+        <form
+          onsubmit="saveGame(event)"
+          class="grid2"
+        >
+
+          <div class="field">
+
+            <label>
+              Data
+            </label>
+
+            <input
+              id="gameFormDate"
+              type="date"
+              required
+            >
+
+          </div>
+
+
+          <div class="field">
+
+            <label>
+              Quantidade de times
+            </label>
+
+            <select id="gameTeams">
+
+              <option value="2">
+                2
+              </option>
+
+              <option value="3">
+                3
+              </option>
+
+              <option value="4">
+                4
+              </option>
+
+            </select>
+
+          </div>
+
+
+          <div
+            class="field"
+            style="grid-column:1/-1"
+          >
+
+            <label>
+              Observações
+            </label>
+
+            <textarea
+              id="gameNotes"
+              placeholder="Ex.: quadra, horário, observações..."
+            ></textarea>
+
+          </div>
+
+
+          <div class="row">
+
+            <button
+              class="primary"
+              type="submit"
+            >
+              Salvar jogo
+            </button>
+
+            <button
+              type="button"
+              onclick="newGameForm()"
+            >
+              Cancelar
+            </button>
+
+          </div>
+
+        </form>
+
+      </div>
+
+
+      <!-- LISTA DE JOGOS -->
+
+      <div
+        class="card"
+        style="margin-top:14px"
+      >
+
+        <h2>
+          Jogos cadastrados
+        </h2>
+
+        <div
+          id="gamesList"
+          class="tableWrap"
+        ></div>
+
+      </div>
+
+
+      <!-- JOGO SELECIONADO -->
+
+      <div
+        class="card"
+        style="margin-top:14px"
+      >
+
+        <h2 id="currentGameTitle">
+          Jogo selecionado
+        </h2>
+
+        <div
+          id="gamePlayerList"
+        ></div>
+
+      </div>
+
+
+      <div
+        class="row"
+        style="margin:14px 0"
+      >
+
+        <button
+          class="primary"
+          onclick="drawTeams()"
+        >
+          🎲 Sortear times equilibrados
+        </button>
+
+        <button
+          onclick="sendTeamsWhatsApp()"
+        >
+          📲 Enviar times no WhatsApp
+        </button>
+
+      </div>
+
+
+      <div
+        id="teamsAdmin"
+        class="teamGrid"
+      ></div>
+
+    </section>
+
+
+    <!-- ===================================================== -->
+    <!-- PAGAMENTOS -->
+    <!-- ===================================================== -->
+
+    <section id="a_payments" class="page">
+
+      <div class="hero">
+
+        <h1>
+          💰 Pagamentos
+        </h1>
+
+        <p class="muted">
+          Controle mensalidades, pagamentos individuais
+          e todo o histórico financeiro.
+        </p>
+
+      </div>
+
+
+      <!-- CONTROLES -->
+
+      <div class="card">
+
+        <div class="sectionHeader">
+
+          <h2>
+            Competência
+          </h2>
+
+          <button
+            onclick="refreshPayments()"
+          >
+            🔄 Atualizar
+          </button>
+
+        </div>
+
+
+        <div class="grid2">
+
+          <div class="field">
+
+            <label>
+              Mês da mensalidade
+            </label>
+
+            <input
+              id="paymentMonthInput"
+              type="month"
+              onchange="changePaymentMonth()"
+            >
+
+          </div>
+
+
+          <div>
+
+            <label>
+              Competência selecionada
+            </label>
+
+            <div
+              id="paymentMonth"
+              class="notice"
+            ></div>
+
+          </div>
+
+        </div>
+
+      </div>
+
+
+      <!-- MENSALIDADES -->
+
+      <div
+        class="card"
+        style="margin-top:14px"
+      >
+
+        <div class="sectionHeader">
+
+          <h2>
+            📅 Mensalidades
+          </h2>
+
+          <button
+            onclick="addMonthlyPayment()"
+          >
+            + Registrar mensalidade
+          </button>
+
+        </div>
+
+
+        <div class="tableWrap">
+
+          <table>
+
+            <thead>
+
+              <tr>
+                <th>Jogador</th>
+                <th>Competência</th>
+                <th>Valor</th>
+                <th>Status</th>
+                <th>Pagamento</th>
+                <th>Ações</th>
+              </tr>
+
+            </thead>
+
+            <tbody id="monthlyTable"></tbody>
+
+          </table>
+
+        </div>
+
+      </div>
+
+
+      <!-- INDIVIDUAIS -->
+
+      <div
+        class="card"
+        style="margin-top:14px"
+      >
+
+        <div class="sectionHeader">
+
+          <h2>
+            🏐 Pagamentos individuais
+          </h2>
+
+          <button
+            onclick="addUnitPayment()"
+          >
+            + Registrar individual
+          </button>
+
+        </div>
+
+
+        <p class="muted small">
+          É possível registrar somente quem realmente pagou,
+          inclusive em jogos antigos.
+        </p>
+
+
+        <div class="tableWrap">
+
+          <table>
+
+            <thead>
+
+              <tr>
+                <th>Data / Jogo</th>
+                <th>Jogador</th>
+                <th>Valor</th>
+                <th>Status</th>
+                <th>Pagamento</th>
+                <th>Ações</th>
+              </tr>
+
+            </thead>
+
+            <tbody id="unitTable"></tbody>
+
+          </table>
+
+        </div>
+
+      </div>
+
+
+      <!-- HISTÓRICO -->
+
+      <div
+        class="card"
+        style="margin-top:14px"
+      >
+
+        <div class="sectionHeader">
+
+          <h2>
+            📜 Histórico financeiro
+          </h2>
+
+          <button
+            class="primary"
+            onclick="addHistoricalPayment()"
+          >
+            + Registrar histórico
+          </button>
+
+        </div>
+
+
+        <p class="muted small">
+          Use esta área para pagamentos antigos, inclusive de
+          pessoas que ainda não estão cadastradas como jogadores.
+        </p>
+
+
+        <div
+          id="historicalPaymentForm"
+          class="hidden"
+        ></div>
+
+
+        <div class="tableWrap">
+
+          <table>
+
+            <thead>
+
+              <tr>
+                <th>Data</th>
+                <th>Nome</th>
+                <th>Tipo</th>
+                <th>Jogo / Competência</th>
+                <th>Valor</th>
+                <th>Jogador vinculado</th>
+                <th>Ações</th>
+              </tr>
+
+            </thead>
+
+            <tbody id="historicalPaymentsTable"></tbody>
+
+          </table>
+
+        </div>
+
+      </div>
+
+    </section>
+
+
+    <!-- ===================================================== -->
+    <!-- CAIXA -->
+    <!-- ===================================================== -->
+
+    <section id="a_cash" class="page">
+
+      <div class="sectionHeader">
+
+        <h1>
+          🏦 Caixa
+        </h1>
+
+        <button
+          onclick="editOpeningBalance()"
+        >
+          ⚙️ Saldo inicial
+        </button>
+
+      </div>
+
+
+      <div
+        id="cashStats"
+        class="statCards"
+      ></div>
+
+
+      <!-- MOVIMENTAÇÃO -->
+
+      <div
+        class="card"
+        style="margin-top:14px"
+      >
+
+        <h2>
+          Registrar movimentação
+        </h2>
+
+        <form
+          id="cashForm"
+          onsubmit="addCashEntry(event)"
+        >
+
+          <div class="grid">
+
+            <div class="field">
+
+              <label>
+                Data
+              </label>
+
+              <input
+                id="cashDate"
+                type="date"
+                required
+              >
+
+            </div>
+
+
+            <div class="field">
+
+              <label>
+                Tipo
+              </label>
+
+              <select id="cashType">
+
+                <option value="entrada">
+                  Entrada
+                </option>
+
+                <option value="saida">
+                  Saída
+                </option>
+
+              </select>
+
+            </div>
+
+
+            <div class="field">
+
+              <label>
+                Categoria
+              </label>
+
+              <select id="cashCategory">
+
+                <option>
+                  Pagamento individual
+                </option>
+
+                <option>
+                  Mensalidade
+                </option>
+
+                <option>
+                  Churrasco
+                </option>
+
+                <option>
+                  Material
+                </option>
+
+                <option>
+                  Quadra
+                </option>
+
+                <option>
+                  Outro
+                </option>
+
+              </select>
+
+            </div>
+
+          </div>
+
+
+          <div class="grid2">
+
+            <div class="field">
+
+              <label>
+                Valor
+              </label>
+
+              <input
+                id="cashAmount"
+                type="number"
+                min="0.01"
+                step="0.01"
+                required
+              >
+
+            </div>
+
+
+            <div class="field">
+
+              <label>
+                Descrição
+              </label>
+
+              <input
+                id="cashDescription"
+                required
+                placeholder="Ex.: Churrasco"
+              >
+
+            </div>
+
+          </div>
+
+
+          <button
+            class="primary"
+            type="submit"
+          >
+            Registrar movimentação
+          </button>
+
+        </form>
+
+      </div>
+
+
+      <!-- SAÍDA RÁPIDA -->
+
+      <div
+        class="card"
+        style="margin-top:14px"
+      >
+
+        <h2>
+          Registrar saída rápida
+        </h2>
+
+        <form
+          id="expenseForm"
+          onsubmit="addExpense(event)"
+          class="grid2"
+        >
+
+          <div class="field">
+
+            <label>
+              Categoria
+            </label>
+
+            <select id="expenseCategory">
+
+              <option>
+                Churrasco
+              </option>
+
+              <option>
+                Material
+              </option>
+
+              <option>
+                Quadra
+              </option>
+
+              <option>
+                Mensalidade
+              </option>
+
+              <option>
+                Outro
+              </option>
+
+            </select>
+
+          </div>
+
+
+          <div class="field">
+
+            <label>
+              Valor
+            </label>
+
+            <input
+              id="expenseAmount"
+              type="number"
+              step="0.01"
+              min="0.01"
+              required
+            >
+
+          </div>
+
+
+          <div class="field">
+
+            <label>
+              Descrição
+            </label>
+
+            <input
+              id="expenseDescription"
+              required
+            >
+
+          </div>
+
+
+          <div>
+
+            <button class="primary">
+              Registrar saída
+            </button>
+
+          </div>
+
+        </form>
+
+      </div>
+
+
+      <!-- TABELA CAIXA -->
+
+      <div
+        class="card tableWrap"
+        style="margin-top:14px"
+      >
+
+        <table>
+
+          <thead>
+
+            <tr>
+              <th>Data</th>
+              <th>Tipo</th>
+              <th>Categoria</th>
+              <th>Descrição</th>
+              <th>Valor</th>
+              <th>Ações</th>
+            </tr>
+
+          </thead>
+
+          <tbody id="cashTable"></tbody>
+
+        </table>
+
+      </div>
+
+    </section>
+
+
+    <!-- ===================================================== -->
+    <!-- VAR / SPOTIFY -->
+    <!-- ===================================================== -->
+
+    <section id="a_media" class="page">
+
+      <h1>
+        🎥 VAR / 🎵 Playlist
+      </h1>
+
+
+      <div class="grid2">
+
+
+        <!-- VAR -->
+
+        <div class="card">
+
+          <div class="sectionHeader">
+
+            <h2>
+              🎥 Vídeos / VAR
+            </h2>
+
+            <button
+              onclick="newVarForm()"
+            >
+              + Novo vídeo
+            </button>
+
+          </div>
+
+
+          <form
+            id="varForm"
+            onsubmit="addVar(event)"
+          >
+
+            <div class="field">
+
+              <label>
+                Título
+              </label>
+
+              <input
+                id="varTitle"
+                required
+              >
+
+            </div>
+
+
+            <div class="field">
+
+              <label>
+                Link
+              </label>
+
+              <input
+                id="varUrl"
+                type="url"
+                required
+              >
+
+            </div>
+
+
+            <div class="field">
+
+              <label>
+                Data
+              </label>
+
+              <input
+                id="varDate"
+                type="date"
+              >
+
+            </div>
+
+
+            <button class="primary">
+              Salvar vídeo
+            </button>
+
+          </form>
+
+
+          <hr style="border-color:var(--line)">
+
+
+          <div id="varAdminList"></div>
+
+        </div>
+
+
+        <!-- SPOTIFY -->
+
+        <div class="card">
+
+          <h2>
+            🎵 Spotify
+          </h2>
+
+          <form onsubmit="saveSpotify(event)">
+
+            <div class="field">
+
+              <label>
+                URL da playlist
+              </label>
+
+              <input
+                id="spotifyInput"
+                type="url"
+              >
+
+            </div>
+
+            <button class="primary">
+              Salvar playlist
+            </button>
+
+          </form>
+
+          <div
+            id="spotifyPreview"
+            style="margin-top:15px"
+          ></div>
+
+        </div>
+
+      </div>
+
+    </section>
+
+
+    <!-- ===================================================== -->
+    <!-- CONFIGURAÇÕES -->
+    <!-- ===================================================== -->
+
+    <section id="a_settings" class="page">
+
+      <h1>
+        ⚙️ Administração
+      </h1>
+
+
+      <!-- ADMIN COMO JOGADOR -->
+
+      <div class="card">
+
+        <h2>
+          👤 Seu cadastro de jogador
+        </h2>
+
+        <p class="muted">
+          O administrador também pode participar dos jogos.
+          Selecione seu jogador para que ele participe do sorteio.
+        </p>
+
+
+        <div
+          id="adminPlayerSelector"
+          class="field"
+        ></div>
+
+
+        <form
+          onsubmit="saveMyPlayer(event)"
+          class="grid2"
+        >
+
+          <div class="field">
+
+            <label>
+              Nome
+            </label>
+
+            <input
+              id="adminPlayerName"
+              required
+            >
+
+          </div>
+
+
+          <div class="field">
+
+            <label>
+              Habilidade
+            </label>
+
+            <select id="adminPlayerSkill">
+
+              <option value="iniciante">
+                Iniciante
+              </option>
+
+              <option value="basico">
+                Básico
+              </option>
+
+              <option value="intermediario">
+                Intermediário
+              </option>
+
+              <option value="avancado">
+                Avançado
+              </option>
+
+              <option value="expert">
+                Expert
+              </option>
+
+            </select>
+
+          </div>
+
+
+          <div>
+
+            <button class="primary">
+              Salvar cadastro
+            </button>
+
+          </div>
+
+        </form>
+
+      </div>
+
+
+      <!-- CONFIGURAÇÕES DO GRUPO -->
+
+      <div
+        class="card"
+        style="margin-top:14px"
+      >
+
+        <h2>
+          💵 Valores e Instagram
+        </h2>
+
+
+        <form
+          onsubmit="saveSettings(event)"
+          class="grid2"
+        >
+
+          <div class="field">
+
+            <label>
+              Mensalidade
+            </label>
+
+            <input
+              id="monthlyFee"
+              type="number"
+              step="0.01"
+            >
+
+          </div>
+
+
+          <div class="field">
+
+            <label>
+              Individual
+            </label>
+
+            <input
+              id="unitFee"
+              type="number"
+              step="0.01"
+            >
+
+          </div>
+
+
+          <div class="field">
+
+            <label>
+              Instagram
+            </label>
+
+            <input
+              id="instagramUrl"
+              type="url"
+            >
+
+          </div>
+
+
+          <div>
+
+            <button class="primary">
+              Salvar configurações
+            </button>
+
+          </div>
+
+        </form>
+
+      </div>
+
+
+      <!-- LINK CADASTRO -->
+
+      <div
+        class="card"
+        style="margin-top:14px"
+      >
+
+        <h2>
+          🔗 Link de cadastro dos jogadores
+        </h2>
+
+        <p class="muted">
+          Envie este link no grupo do WhatsApp.
+          O jogador informa apenas nome e habilidade.
+        </p>
+
+
+        <div class="linkBox">
+
+          <input
+            id="registerLink"
+            readonly
+          >
+
+          <button onclick="copyRegister()">
+            Copiar
+          </button>
+
+          <button onclick="sendRegisterWhatsApp()">
+            WhatsApp
+          </button>
+
+        </div>
+
+
+        <br>
+
+
+        <button
+          class="danger"
+          onclick="rotateInvite()"
+        >
+          🔄 Gerar novo link
+        </button>
+
+      </div>
+
+
+      <!-- ADMINISTRADORES -->
+
+      <div
+        class="card"
+        style="margin-top:14px"
+      >
+
+        <h2>
+          👑 Administradores
+        </h2>
+
+        <p class="muted">
+          Cada administrador possui seu próprio login.
+        </p>
+
+
+        <form
+          onsubmit="addAdmin(event)"
+          class="row"
+        >
+
+          <input
+            id="adminInviteEmail"
+            type="email"
+            placeholder="e-mail do novo administrador"
+            required
+            style="max-width:500px"
+          >
+
+          <button class="primary">
+            Autorizar administrador
+          </button>
+
+        </form>
+
+
+        <div
+          class="tableWrap"
+          style="margin-top:12px"
+        >
+
+          <table>
+
+            <thead>
+
+              <tr>
+                <th>E-mail</th>
+                <th>Cadastro</th>
+                <th>Ações</th>
+              </tr>
+
+            </thead>
+
+            <tbody id="adminsList"></tbody>
+
+          </table>
+
+        </div>
+
+      </div>
+
+    </section>
+
+  </main>
+
 </div>
 
-<div id="toast" class="toast hidden"></div>
+
+<!-- ========================================================= -->
+<!-- TOAST -->
+<!-- ========================================================= -->
+
+<div
+  id="toast"
+  class="toast hidden"
+></div>
+
+
 <script src="app.js"></script>
+
 </body>
 </html>
