@@ -5383,12 +5383,10 @@ async function saveSettings(e) {
 
 
 async function rotateInvite() {
+
   const newToken =
     crypto.randomUUID()
-      .replace(
-        /-/g,
-        ''
-      );
+      .replace(/-/g, '');
 
   const r =
     await SB
@@ -5402,12 +5400,18 @@ async function rotateInvite() {
       })
       .eq(
         'id',
-        true
+        'true'
       );
 
   if (r.error) {
+
     toast(
       r.error.message
+    );
+
+    console.error(
+      'Erro ao gerar link:',
+      r.error
     );
 
     return;
@@ -5417,6 +5421,7 @@ async function rotateInvite() {
     newToken;
 
   if ($('registerLink')) {
+
     $('registerLink').value =
       registerUrl();
   }
@@ -5425,8 +5430,6 @@ async function rotateInvite() {
     'Novo link de cadastro criado.'
   );
 }
-
-
 async function copyRegister() {
   const value =
     $('registerLink')
