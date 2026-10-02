@@ -1257,123 +1257,127 @@ th,td{
       </div>
 
 
-      <!-- INDIVIDUAIS -->
+     <!-- ===================================================== -->
+<!-- PAGAMENTOS INDIVIDUAIS -->
+<!-- ===================================================== -->
 
-      <div
-        class="card"
-        style="margin-top:14px"
+<div
+  class="card"
+  style="margin-top:14px"
+>
+  <div class="sectionHeader">
+
+    <h2>
+      🏐 Pagamentos individuais
+    </h2>
+
+  </div>
+
+  <p class="muted small">
+    Cadastre um pagamento individual informando o jogo,
+    jogador e valor. Ao marcar como pago, o valor será
+    lançado automaticamente no caixa.
+  </p>
+
+  <!-- CADASTRO -->
+
+  <div
+    id="unitAdvancedControls"
+    style="margin-bottom:18px"
+  >
+
+    <div
+      style="
+        display:grid;
+        gap:12px;
+        grid-template-columns:
+        repeat(auto-fit,minmax(190px,1fr));
+        align-items:end;
+      "
+    >
+
+      <label>
+        <span>
+          Jogo
+        </span>
+
+        <select
+          id="payGameSelect"
+          onchange="changePaymentGame(this.value)"
+        >
+        </select>
+
+      </label>
+
+
+      <label>
+        <span>
+          Jogador
+        </span>
+
+        <select
+          id="unitPlayerSelect"
+        >
+        </select>
+
+      </label>
+
+
+      <label>
+        <span>
+          Valor
+        </span>
+
+        <input
+          id="unitAmount"
+          type="number"
+          min="0"
+          step="0.01"
+          placeholder="10,00"
+        >
+
+      </label>
+
+
+      <button
+        type="button"
+        class="primary"
+        onclick="addUnitCharge()"
       >
+        ➕ Adicionar individual
+      </button>
 
-        <div class="sectionHeader">
+    </div>
 
-          <h2>
-            🏐 Pagamentos individuais
-          </h2>
-
-          <button
-            onclick="addUnitPayment()"
-          >
-            + Registrar individual
-          </button>
-
-        </div>
+  </div>
 
 
-        <p class="muted small">
-          É possível registrar somente quem realmente pagou,
-          inclusive em jogos antigos.
-        </p>
+  <!-- LISTA DOS PAGAMENTOS -->
 
+  <div class="tableWrap">
 
-        <div class="tableWrap">
+    <table>
 
-          <table>
+      <thead>
 
-            <thead>
+        <tr>
+          <th>Data / Jogo</th>
+          <th>Jogador</th>
+          <th>Valor</th>
+          <th>Status</th>
+          <th>Pagamento</th>
+          <th>Ações</th>
+        </tr>
 
-              <tr>
-                <th>Data / Jogo</th>
-                <th>Jogador</th>
-                <th>Valor</th>
-                <th>Status</th>
-                <th>Pagamento</th>
-                <th>Ações</th>
-              </tr>
+      </thead>
 
-            </thead>
+      <tbody id="unitTable"></tbody>
 
-            <tbody id="unitTable"></tbody>
+    </table>
 
-          </table>
+  </div>
 
-        </div>
-
-      </div>
-
-
-      <!-- HISTÓRICO -->
-
-      <div
-        class="card"
-        style="margin-top:14px"
-      >
-
-        <div class="sectionHeader">
-
-          <h2>
-            📜 Histórico financeiro
-          </h2>
-
-          <button
-            class="primary"
-            onclick="addHistoricalPayment()"
-          >
-            + Registrar histórico
-          </button>
-
-        </div>
-
-
-        <p class="muted small">
-          Use esta área para pagamentos antigos, inclusive de
-          pessoas que ainda não estão cadastradas como jogadores.
-        </p>
-
-
-        <div
-          id="historicalPaymentForm"
-          class="hidden"
-        ></div>
-
-
-        <div class="tableWrap">
-
-          <table>
-
-            <thead>
-
-              <tr>
-                <th>Data</th>
-                <th>Nome</th>
-                <th>Tipo</th>
-                <th>Jogo / Competência</th>
-                <th>Valor</th>
-                <th>Jogador vinculado</th>
-                <th>Ações</th>
-              </tr>
-
-            </thead>
-
-            <tbody id="historicalPaymentsTable"></tbody>
-
-          </table>
-
-        </div>
-
-      </div>
-
-    </section>
-
+</div>
 
     <!-- ===================================================== -->
     <!-- CAIXA -->
