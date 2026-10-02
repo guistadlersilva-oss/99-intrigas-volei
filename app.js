@@ -5687,187 +5687,60 @@ async function saveMyPlayer(e) {
    PLAYER
 ========================================================= */
 
-async function loadPlayer() {
+async function loadPlayer(silent = false) {
   if (!playerToken) {
-    setMode(
-      'landing'
-    );
-
+    setMode('landing');
     return false;
   }
 
-  const result =
-    await SB
-      .from('players')
-      .select('*')
-      .eq(
-        'token',
-        playerToken
-      )
-      .eq(
-        'active',
-        true
-      )
-      .maybeSingle();
+  const r = await SB.rpc('get_player_view', {
+    p_access_token: playerToken
+  });
 
-  if (
-    result.error ||
-    !result.data
-  ) {
-    playerData =
-      null;
+  if (r.error || !r.data) {
+    console.error('Erro ao abrir área do jogador:', r.error);
 
-    setMode(
-      'landing'
-    );
+    playerData = null;
+    setMode('landing');
 
-    toast(
-      'Link de jogador inválido ou jogador inativo.'
-    );
-
-    return false;
-  }
-
-  const player =
-    result.data;
-
-  const today =
-    todayKey();
-
-  const gameResult =
-    await SB
-      .from('games')
-      .select('*')
-      .gte(
-        'game_date',
-        today
-      )
-      .order(
-        'game_date',
-        {
-          ascending:
-            true
-        }
-      )
-      .limit(1)
-      .maybeSingle();
-
-  const game =
-    gameResult.data ||
-    null;
-
-  let teams = [];
-
-  if (game) {
-    const teamRows =
-      (
-        await SB
-          .from('teams')
-          .select(
-            'id,name,total_skill'
-          )
-          .eq(
-            'game_id',
-            game.id
-          )
-          .order(
-            'created_at'
-          )
-      ).data || [];
-
-    if (teamRows.length) {
-      const members =
-        (
-          await SB
-            .from(
-              'team_members'
-            )
-            .select(
-              'team_id,player_id'
-            )
-            .in(
-              'team_id',
-              teamRows.map(
-                t =>
-                  t.id
-              )
-            )
-        ).data || [];
-
-      teams =
-        teamRows.map(
-          team => ({
-            ...team,
-
-            members:
-              members
-                .filter(
-                  m =>
-                    m.team_id ===
-                    team.id
-                )
-                .map(
-                  m =>
-                    players.find(
-                      p =>
-                        p.id ===
-                        m.player_id
-                    )
-                )
-                .filter(Boolean)
-          })
-        );
+    if (!silent) {
+      toast('Link de jogador inválido ou jogador inativo.');
     }
+
+    return false;
   }
 
-  const varResult =
-    await SB
-      .from(
-        'var_links'
-      )
-      .select('*')
-      .order(
-        'created_at',
-        {
-          ascending:
-            false
-        }
-      );
-
-  const settingResult =
-    await SB
-      .from(
-        'group_settings'
-      )
-      .select('*')
-      .eq(
-        'id',
-        true
-      )
-      .single();
+  const d = r.data;
 
   playerData = {
-    player,
-    game,
-    teams,
-    var:
-      varResult.data ||
-      [],
-    settings:
-      settingResult.data ||
-      {}
+    player: {
+      ...d.player,
+      skill_score: SKILLS[d.player.skill_level] || 0,
+      access_token: playerToken
+    },
+
+    game: d.game || null,
+
+    teams: (d.teams || []).map(t => ({
+      id: t.team_no,
+      team_no: t.team_no,
+      name: `Time ${t.team_no}`,
+      total_skill: t.total_skill,
+      members: (t.members || []).map(m => ({
+        ...m,
+        skill_score: SKILLS[m.skill_level] || 0
+      }))
+    })),
+
+    var: d.var || [],
+    settings: d.settings || {}
   };
 
-  setMode(
-    'player'
-  );
-
+  setMode('player');
   renderPlayer();
 
   return true;
 }
-
-
 function renderPlayer() {
   const d =
     playerData;
