@@ -2209,3 +2209,613 @@ funcI m       .eq(
 
  p{
    
+/* =========================================================
+   PATCH FINAL — PAGAMENTOS / CAIXA
+========================================================= */
+
+ensurePaymentControls = function () {
+  document.getElementById('paymentAdvancedControls')?.remove();
+  document.getElementById('unitAdvancedControls')?.remove();
+};
+
+renderPaymentSelectors = function () {
+  document.getElementById('paymentAdvancedControls')?.remove();
+  document.getElementById('unitAdvancedControls')?.remove();
+
+  if ($('paymentMonthInput')) {
+    $('paymentMonthInput').value =
+      paymentCompetence.slice(0, 7);
+  }
+
+  if ($('paymentMonth')) {
+    $('paymentMonth').textContent =
+      new Date(paymentCompetence + 'T12:00:00')
+        .toLocaleDateString('pt-BR', {
+          month: 'long',
+          year: 'numeric'
+        });
+  }
+};
+
+changePaymentGame = async function () {
+  return;
+};
+
+renderPayments = async function () {
+  document.getElementById('paymentAdvancedControls')?.remove();
+  document.getElementById('unitAdvancedControls')?.remove();
+
+  if ($('paymentMonth')) {
+    $('paymentMonth').textContent =
+      new Date(paymentCompetence + 'T12:00:00')
+        .toLocaleDateString('pt-BR', {
+          month: 'long',
+          year: 'numeric'
+        });
+  }
+
+  if ($('paymentMonthInput')) {
+    $('paymentMonthInput').value =
+      paymentCompetence.slice(0, 7);
+  }
+
+  const result = await SB
+    .from('monthly_payments')
+    .select('*')
+    .eq('competence', paymentCompetence);
+
+  if (result.error) {
+    console.error(result.error);
+    toast('Erro ao carregar mensalidades.');
+    return;
+  }
+
+  const monthly = result.data || [];
+  const table = $('monthlyTable');
+
+  if (!table) {
+    return;
+  }
+
+  table.innerHTML =
+    players
+      .filter(p => p.active)
+      .map(p => {
+        const row =
+          monthly.find(x => x.player_id === p.id);
+
+        const amount = Number(
+          row?.amount ??
+          settings?.monthly_fee ??
+          0
+        );
+
+        return `
+          <tr>
+            <td>${esc(p.name)}</td>
+
+            <td>
+              ${new Date(
+                paymentCompetence + 'T12:00:00'
+              ).toLocaleDateString('pt-BR', {
+                month: '2-digit',
+                year: 'numeric'
+              })}
+            </td>
+
+            <td>
+              <input
+                type="number"
+                min="0"
+                step="0.01"
+                value="${amount.toFixed(2)}"
+                style="max-width:120px"
+                onchange="editMonthlyAmount('${p.id}', this.value)"
+              >
+            </td>
+
+            <td>
+              <span class="badge ${row?.paid ? 'paid' : 'pending'}">
+                ${row?.paid ? 'Pago' : 'Pendente'}
+              </span>
+            </td>
+
+            <td>
+              <button
+                type="button"
+                onclick="toggleMonthly('${p.id}', ${!!row?.paid})"
+              >
+                ${row?.paid ? 'Desmarcar' : 'Marcar pago'}
+              </button>
+            </td>
+
+            <td>—</td>
+          </tr>
+        `;
+      })
+      .join('') ||
+    `
+      <tr>
+        <td colspan="6">
+          Nenhum jogador ativo.
+        </td>
+      </tr>
+    `;
+};
+
+editUnitAmount = async function () {
+  toast(
+    'Pagamentos individuais não são mais utilizados. Registre entradas e saídas no Caixa.'
+  );
+};
+
+addUnitCharge = async function () {
+  toast(
+    'Pagamentos individuais não são mais utilizados. Registre entradas no Caixa.'
+  );
+};
+
+toggleUnit = async function () {
+  toast(
+    'Pagamento individual não é mais utilizado.'
+  );
+};
+
+removeUnit = async function () {
+  return;
+};
+
+gamePlayerRows = async function (gameId) {
+  const result = await SB
+    .from('game_players')
+    .select('*')
+    .eq('game_id', gameId);
+
+  const gp = result.data || [];
+
+  return `
+    <div class="tableWrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Jogador</th>
+            <th>Habilidade</th>
+            <th>Vai jogar?</th>
+          </tr>
+        </thead>
+
+        <tbody>
+          ${
+            players
+              .filter(p => p.active)
+              .map(p => {
+                const x = gp.find(
+                  a => a.player_id === p.id
+                );
+
+                return `
+                  <tr>
+                    <td>${esc(p.name)}</td>
+
+                    <td>
+                      ${
+                        SKILL_LABEL[p.skill] ||
+                        p.skill
+                      }
+                    </td>
+
+                    <td>
+                      <input
+                        type="checkbox"
+                        ${x?.present ? 'checked' : ''}
+                        onchange="
+                          saveGamePlayer(
+                            '${gameId}',
+                            '${p.id}',
+                            this.checked
+                          )
+                        "
+                      >
+                    </td>
+                  </tr>
+                `;
+              })
+              .join('')
+          }
+        </tbody>
+      </table>
+    </div>
+  `;
+};
+
+saveGamePlayer = async function (
+  gameId,
+  playerId,
+  present
+) {
+  const result = await SB
+    .from('game_players')
+    .upsert(
+      {
+        game_id: gameId,
+        player_id: playerId,
+        present: !!present,
+        payment_mode: 'mensal'
+      },
+      {
+        onConflict: 'game_id,player_id'
+      }
+    );
+
+  if (result.error) {
+    toast(result.error.message);
+    return;
+  }
+
+  await renderGames();
+};
+
+toggleCashNameField = function () {
+  const type = $('cashType')?.value;
+  const field = $('cashNameField');
+  const input = $('cashName');
+
+  if (!field) {
+    return;
+  }
+
+  if (type === 'entrada') {
+    field.style.display = '';
+
+    if (input) {
+      input.required = true;
+    }
+  } else {
+    field.style.display = 'none';
+
+    if (input) {
+      input.required = false;
+      input.value = '';
+    }
+  }
+};
+
+addCashEntry = async function (e) {
+  e.preventDefault();
+
+  const date =
+    $('cashDate')?.value ||
+    todayKey();
+
+  const type =
+    $('cashType')?.value ||
+    'entrada';
+
+  const category =
+    $('cashCategory')?.value ||
+    'Outro';
+
+  const name =
+    $('cashName')?.value.trim() ||
+    '';
+
+  const amount =
+    Number($('cashAmount')?.value);
+
+  const observation =
+    $('cashDescription')?.value.trim() ||
+    '';
+
+  if (type === 'entrada' && !name) {
+    toast(
+      'Informe o nome de quem realizou o pagamento.'
+    );
+    return;
+  }
+
+  if (
+    !Number.isFinite(amount) ||
+    amount <= 0
+  ) {
+    toast(
+      'Informe um valor válido.'
+    );
+    return;
+  }
+
+  if (!observation) {
+    toast(
+      'Informe a observação.'
+    );
+    return;
+  }
+
+  const description =
+    type === 'entrada'
+      ? `${name} | ${observation}`
+      : observation;
+
+  const result = await SB
+    .from('cash_entries')
+    .insert({
+      entry_date: date,
+      type,
+      category,
+      description,
+      amount
+    });
+
+  if (result.error) {
+    toast(result.error.message);
+    return;
+  }
+
+  $('cashForm')?.reset();
+
+  if ($('cashDate')) {
+    $('cashDate').value =
+      todayKey();
+  }
+
+  if ($('cashType')) {
+    $('cashType').value =
+      'entrada';
+  }
+
+  toggleCashNameField();
+
+  toast(
+    type === 'entrada'
+      ? 'Entrada registrada.'
+      : 'Saída registrada.'
+  );
+
+  await renderCash();
+};
+
+renderCash = async function () {
+  const [state, result] =
+    await Promise.all([
+      SB
+        .from('app_state')
+        .select('cash_initial')
+        .eq('id', true)
+        .maybeSingle(),
+
+      SB
+        .from('cash_entries')
+        .select('*')
+        .order(
+          'entry_date',
+          { ascending: false }
+        )
+        .order(
+          'created_at',
+          { ascending: false }
+        )
+    ]);
+
+  const initial =
+    Number(
+      state.data?.cash_initial || 0
+    );
+
+  const entries =
+    result.data || [];
+
+  let entradas = 0;
+  let saidas = 0;
+
+  for (const row of entries) {
+    const amount =
+      Number(row.amount || 0);
+
+    if (
+      row.type === 'entrada' ||
+      row.type === 'in'
+    ) {
+      entradas += amount;
+    } else {
+      saidas += amount;
+    }
+  }
+
+  const balance =
+    initial +
+    entradas -
+    saidas;
+
+  if ($('cashStats')) {
+    $('cashStats').innerHTML = `
+      <div class="statCard">
+        <span>Saldo inicial</span>
+        <b>${money(initial)}</b>
+      </div>
+
+      <div class="statCard">
+        <span>Entradas</span>
+        <b>${money(entradas)}</b>
+      </div>
+
+      <div class="statCard">
+        <span>Saídas</span>
+        <b>${money(saidas)}</b>
+      </div>
+
+      <div class="statCard">
+        <span>Saldo atual</span>
+        <b>${money(balance)}</b>
+      </div>
+    `;
+  }
+
+  const tables =
+    document.querySelectorAll(
+      '#cashTable'
+    );
+
+  const table =
+    tables[0] || null;
+
+  tables.forEach(
+    (tbody, index) => {
+      if (index > 0) {
+        tbody
+          .closest('.card')
+          ?.remove();
+      }
+    }
+  );
+
+  if (!table) {
+    return;
+  }
+
+  table.innerHTML =
+    entries
+      .map(
+        row => `
+          <tr>
+            <td>
+              ${dateBR(
+                row.entry_date
+              )}
+            </td>
+
+            <td>
+              ${
+                row.type === 'entrada' ||
+                row.type === 'in'
+                  ? 'Entrada'
+                  : 'Saída'
+              }
+            </td>
+
+            <td>
+              ${esc(
+                row.category || ''
+              )}
+            </td>
+
+            <td>
+              ${esc(
+                row.description || ''
+              )}
+            </td>
+
+            <td>
+              ${money(
+                row.amount
+              )}
+            </td>
+
+            <td>
+              <button
+                type="button"
+                onclick="editCashEntry('${row.id}')"
+              >
+                Editar
+              </button>
+
+              <button
+                type="button"
+                onclick="deleteCashEntry('${row.id}')"
+              >
+                🗑️
+              </button>
+            </td>
+          </tr>
+        `
+      )
+      .join('') ||
+    `
+      <tr>
+        <td colspan="6">
+          Nenhuma movimentação.
+        </td>
+      </tr>
+    `;
+
+  const category =
+    $('cashCategory');
+
+  if (category) {
+    category
+      .querySelectorAll('option')
+      .forEach(option => {
+        if (
+          option.value ===
+          'Pagamento individual'
+        ) {
+          option.remove();
+        }
+      });
+  }
+
+  if ($('cashDate')) {
+    $('cashDate').value =
+      $('cashDate').value ||
+      todayKey();
+  }
+
+  toggleCashNameField();
+};
+
+window.addEventListener(
+  'load',
+  () => {
+    document
+      .getElementById(
+        'unitAdvancedControls'
+      )
+      ?.remove();
+
+    document
+      .getElementById(
+        'paymentAdvancedControls'
+      )
+      ?.remove();
+
+    document
+      .getElementById(
+        'cashIncomeForm'
+      )
+      ?.remove();
+
+    document
+      .getElementById(
+        'expenseForm'
+      )
+      ?.remove();
+
+    document
+      .querySelectorAll(
+        '#cashTable'
+      )
+      .forEach(
+        (tbody, index) => {
+          if (index > 0) {
+            tbody
+              .closest('.card')
+              ?.remove();
+          }
+        }
+      );
+
+    const category =
+      $('cashCategory');
+
+    category
+      ?.querySelectorAll('option')
+      .forEach(option => {
+        if (
+          option.value ===
+          'Pagamento individual'
+        ) {
+          option.remove();
+        }
+      });
+
+    toggleCashNameField();
+  }
+);
