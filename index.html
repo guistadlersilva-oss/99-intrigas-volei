@@ -1148,9 +1148,8 @@ th,td{
         </h1>
 
         <p class="muted">
-          Controle mensalidades, pagamentos individuais
-          e todo o histórico financeiro.
-        </p>
+  Controle das mensalidades do grupo.
+</p>
 
       </div>
 
@@ -1257,129 +1256,7 @@ th,td{
       </div>
 
 
-     <!-- ===================================================== -->
-<!-- PAGAMENTOS INDIVIDUAIS -->
-<!-- ===================================================== -->
-
-<div
-  class="card"
-  style="margin-top:14px"
->
-  <div class="sectionHeader">
-
-    <h2>
-      🏐 Pagamentos individuais
-    </h2>
-
-  </div>
-
-  <p class="muted small">
-    Cadastre um pagamento individual informando o jogo,
-    jogador e valor. Ao marcar como pago, o valor será
-    lançado automaticamente no caixa.
-  </p>
-
-  <!-- CADASTRO -->
-
-  <div
-    id="unitAdvancedControls"
-    style="margin-bottom:18px"
-  >
-
-    <div
-      style="
-        display:grid;
-        gap:12px;
-        grid-template-columns:
-        repeat(auto-fit,minmax(190px,1fr));
-        align-items:end;
-      "
-    >
-
-      <label>
-        <span>
-          Jogo
-        </span>
-
-        <select
-          id="payGameSelect"
-          onchange="changePaymentGame(this.value)"
-        >
-        </select>
-
-      </label>
-
-
-      <label>
-        <span>
-          Jogador
-        </span>
-
-        <select
-          id="unitPlayerSelect"
-        >
-        </select>
-
-      </label>
-
-
-      <label>
-        <span>
-          Valor
-        </span>
-
-        <input
-          id="unitAmount"
-          type="number"
-          min="0"
-          step="0.01"
-          placeholder="10,00"
-        >
-
-      </label>
-
-
-      <button
-        type="button"
-        class="primary"
-        onclick="addUnitCharge()"
-      >
-        ➕ Adicionar individual
-      </button>
-
-    </div>
-
-  </div>
-
-
-  <!-- LISTA DOS PAGAMENTOS -->
-
-  <div class="tableWrap">
-
-    <table>
-
-      <thead>
-
-        <tr>
-          <th>Data / Jogo</th>
-          <th>Jogador</th>
-          <th>Valor</th>
-          <th>Status</th>
-          <th>Pagamento</th>
-          <th>Ações</th>
-        </tr>
-
-      </thead>
-
-      <tbody id="unitTable"></tbody>
-
-    </table>
-
-  </div>
-
-  </div>
-
-</section>
+    
 
     <!-- ===================================================== -->
     <!-- CAIXA -->
@@ -1407,240 +1284,203 @@ th,td{
       ></div>
 
 
-      <!-- MOVIMENTAÇÃO -->
+     <!-- MOVIMENTAÇÃO -->
 
-      <div
-        class="card"
-        style="margin-top:14px"
-      >
+<div
+  class="card"
+  style="margin-top:14px"
+>
 
-        <h2>
-          Registrar movimentação
-        </h2>
+  <h2>
+    Registrar movimentação
+  </h2>
 
-        <form
-          id="cashForm"
-          onsubmit="addCashEntry(event)"
+  <form
+    id="cashForm"
+    onsubmit="addCashEntry(event)"
+  >
+
+    <div class="grid">
+
+      <div class="field">
+
+        <label>
+          Data
+        </label>
+
+        <input
+          id="cashDate"
+          type="date"
+          required
         >
-
-          <div class="grid">
-
-            <div class="field">
-
-              <label>
-                Data
-              </label>
-
-              <input
-                id="cashDate"
-                type="date"
-                required
-              >
-
-            </div>
-
-
-            <div class="field">
-
-              <label>
-                Tipo
-              </label>
-
-              <select id="cashType">
-
-                <option value="entrada">
-                  Entrada
-                </option>
-
-                <option value="saida">
-                  Saída
-                </option>
-
-              </select>
-
-            </div>
-
-
-            <div class="field">
-
-              <label>
-                Categoria
-              </label>
-
-              <select id="cashCategory">
-
-                <option>
-                  Pagamento individual
-                </option>
-
-                <option>
-                  Mensalidade
-                </option>
-
-                <option>
-                  Churrasco
-                </option>
-
-                <option>
-                  Material
-                </option>
-
-                <option>
-                  Quadra
-                </option>
-
-                <option>
-                  Outro
-                </option>
-
-              </select>
-
-            </div>
-
-          </div>
-
-
-          <div class="grid2">
-
-            <div class="field">
-
-              <label>
-                Valor
-              </label>
-
-              <input
-                id="cashAmount"
-                type="number"
-                min="0.01"
-                step="0.01"
-                required
-              >
-
-            </div>
-
-
-            <div class="field">
-
-              <label>
-                Descrição
-              </label>
-
-              <input
-                id="cashDescription"
-                required
-                placeholder="Ex.: Churrasco"
-              >
-
-            </div>
-
-          </div>
-
-
-          <button
-            class="primary"
-            type="submit"
-          >
-            Registrar movimentação
-          </button>
-
-        </form>
 
       </div>
 
 
-      <!-- SAÍDA RÁPIDA -->
+      <div class="field">
 
-      <div
-        class="card"
-        style="margin-top:14px"
-      >
+        <label>
+          Tipo
+        </label>
 
-        <h2>
-          Registrar saída rápida
-        </h2>
-
-        <form
-          id="expenseForm"
-          onsubmit="addExpense(event)"
-          class="grid2"
+        <select
+          id="cashType"
+          onchange="toggleCashNameField()"
         >
 
-          <div class="field">
+          <option value="entrada">
+            Entrada
+          </option>
 
-            <label>
-              Categoria
-            </label>
+          <option value="saida">
+            Saída
+          </option>
 
-            <select id="expenseCategory">
-
-              <option>
-                Churrasco
-              </option>
-
-              <option>
-                Material
-              </option>
-
-              <option>
-                Quadra
-              </option>
-
-              <option>
-                Mensalidade
-              </option>
-
-              <option>
-                Outro
-              </option>
-
-            </select>
-
-          </div>
-
-
-          <div class="field">
-
-            <label>
-              Valor
-            </label>
-
-            <input
-              id="expenseAmount"
-              type="number"
-              step="0.01"
-              min="0.01"
-              required
-            >
-
-          </div>
-
-
-          <div class="field">
-
-            <label>
-              Descrição
-            </label>
-
-            <input
-              id="expenseDescription"
-              required
-            >
-
-          </div>
-
-
-          <div>
-
-            <button class="primary">
-              Registrar saída
-            </button>
-
-          </div>
-
-        </form>
+        </select>
 
       </div>
 
+
+      <div class="field">
+
+        <label>
+          Categoria
+        </label>
+
+        <select id="cashCategory">
+
+          <option value="Pagamento individual">
+            Pagamento individual
+          </option>
+
+          <option value="Mensalidade">
+            Mensalidade
+          </option>
+
+          <option value="Churrasco">
+            Churrasco
+          </option>
+
+          <option value="Material">
+            Material
+          </option>
+
+          <option value="Quadra">
+            Quadra
+          </option>
+
+          <option value="Outro">
+            Outro
+          </option>
+
+        </select>
+
+      </div>
+
+    </div>
+
+
+    <!-- NOME: SOMENTE PARA ENTRADA -->
+
+    <div
+      id="cashNameField"
+      class="field"
+    >
+
+      <label>
+        Nome
+      </label>
+
+      <input
+        id="cashName"
+        type="text"
+        placeholder="Nome de quem realizou o pagamento"
+      >
+
+    </div>
+
+
+    <div class="grid2">
+
+      <div class="field">
+
+        <label>
+          Valor
+        </label>
+
+        <input
+          id="cashAmount"
+          type="number"
+          min="0.01"
+          step="0.01"
+          placeholder="10,00"
+          required
+        >
+
+      </div>
+
+
+      <div class="field">
+
+        <label>
+          Observação
+        </label>
+
+        <input
+          id="cashDescription"
+          type="text"
+          placeholder="Ex.: Pagamento do vôlei"
+          required
+        >
+
+      </div>
+
+    </div>
+
+
+    <button
+      class="primary"
+      type="submit"
+    >
+      Registrar movimentação
+    </button>
+
+  </form>
+
+</div>
+
+
+<!-- HISTÓRICO DO CAIXA -->
+
+<div
+  class="card tableWrap"
+  style="margin-top:14px"
+>
+
+  <h2>
+    Histórico de movimentações
+  </h2>
+
+  <table>
+
+    <thead>
+
+      <tr>
+        <th>Data</th>
+        <th>Tipo</th>
+        <th>Categoria</th>
+        <th>Descrição</th>
+        <th>Valor</th>
+        <th>Ações</th>
+      </tr>
+
+    </thead>
+
+    <tbody id="cashTable"></tbody>
+
+  </table>
+
+</div>
 
       <!-- TABELA CAIXA -->
 
