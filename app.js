@@ -3229,7 +3229,36 @@ async function changePaymentGame(
 async function renderPayments() {
   ensurePaymentControls();
 
+
+  /* =====================================================
+     GARANTIR UM JOGO SELECIONADO
+  ===================================================== */
+
+  if (
+    !currentGame &&
+    allGames.length
+  ) {
+    currentGame =
+      allGames.find(
+        g =>
+          g.game_date >=
+          todayKey()
+      ) ||
+      allGames[0] ||
+      null;
+  }
+
+
+  /* =====================================================
+     ATUALIZAR SELETORES
+  ===================================================== */
+
   renderPaymentSelectors();
+
+
+  /* =====================================================
+     COMPETÊNCIA
+  ===================================================== */
 
   if (
     $('paymentMonth')
@@ -3243,11 +3272,17 @@ async function renderPayments() {
         {
           month:
             'long',
+
           year:
             'numeric'
         }
       );
   }
+
+
+  /* =====================================================
+     MENSALIDADES
+  ===================================================== */
 
   const monthly =
     (
@@ -3262,83 +3297,100 @@ async function renderPayments() {
         )
     ).data || [];
 
+
   $('monthlyTable').innerHTML =
     players
       .filter(
         p =>
           p.active
       )
-      .map(p => {
-        const row =
-          monthly.find(
-            x =>
-              x.player_id ===
-              p.id
-          );
+      .map(
+        p => {
 
-        const amount =
-          Number(
-            row?.amount ??
-            settings?.monthly_fee ??
-            0
-          );
+          const row =
+            monthly.find(
+              x =>
+                x.player_id ===
+                p.id
+            );
 
-        return `
-          <tr>
+          const amount =
+            Number(
+              row?.amount ??
+              settings?.monthly_fee ??
+              0
+            );
 
-            <td>
-              ${esc(
-                p.name
-              )}
-            </td>
 
-            <td>
-              <input
-                type="number"
-                min="0"
-                step="0.01"
-                value="${amount.toFixed(2)}"
-                style="max-width:120px"
-                onchange="editMonthlyAmount(
-                  '${p.id}',
-                  this.value
-                )"
-              >
-            </td>
+          return `
+            <tr>
 
-            <td>
-              <span class="badge ${
-                row?.paid
-                  ? 'paid'
-                  : 'pending'
-              }">
-                ${
-                  row?.paid
-                    ? 'Pago'
-                    : 'Pendente'
-                }
-              </span>
-            </td>
+              <td>
+                ${esc(
+                  p.name
+                )}
+              </td>
 
-            <td>
-              <button
-                onclick="toggleMonthly(
-                  '${p.id}',
-                  ${!!row?.paid}
-                )"
-              >
-                ${
-                  row?.paid
-                    ? 'Desmarcar'
-                    : 'Marcar pago'
-                }
-              </button>
-            </td>
 
-          </tr>
-        `;
-      })
+              <td>
+
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value="${amount.toFixed(2)}"
+                  style="max-width:120px"
+                  onchange="editMonthlyAmount(
+                    '${p.id}',
+                    this.value
+                  )"
+                >
+
+              </td>
+
+
+              <td>
+
+                <span
+                  class="badge ${
+                    row?.paid
+                      ? 'paid'
+                      : 'pending'
+                  }"
+                >
+                  ${
+                    row?.paid
+                      ? 'Pago'
+                      : 'Pendente'
+                  }
+                </span>
+
+              </td>
+
+
+              <td>
+
+                <button
+                  onclick="toggleMonthly(
+                    '${p.id}',
+                    ${!!row?.paid}
+                  )"
+                >
+                  ${
+                    row?.paid
+                      ? 'Desmarcar'
+                      : 'Marcar pago'
+                  }
+                </button>
+
+              </td>
+
+            </tr>
+          `;
+        }
+      )
       .join('') ||
+
     `
       <tr>
         <td colspan="4">
@@ -3347,38 +3399,90 @@ async function renderPayments() {
       </tr>
     `;
 
+
+  /* =====================================================
+     PAGAMENTOS INDIVIDUAIS
+     
+     Se não existir nenhum jogo, apenas informa.
+     Não chama mais "Histórico financeiro".
+  ===================================================== */
+
   if (!currentGame) {
+
     $('unitTable').innerHTML =
       `
         <tr>
+
           <td colspan="5">
-            Nenhum jogo selecionado.
+
+            Nenhum jogo cadastrado.
+
           </td>
+
         </tr>
       `;
-
-    await renderPaymentHistory();
 
     return;
   }
 
+
+  /* =====================================================
+     BUSCAR PAGAMENTOS DO JOGO
+  ===================================================== */
+
+  const unitsResult =
+    await SB
+      .from(
+        'unit_payments'
+      )
+      .select('*')
+      .eq(
+        'game_id',
+        currentGame.id
+      );
+
+
+  if (
+    unitsResult.error
+  ) {
+
+    console.error(
+      'Erro ao carregar pagamentos individuais:',
+      unitsResult.error
+    );
+
+    $('unitTable').innerHTML =
+      `
+        <tr>
+
+          <td colspan="5">
+
+            Não foi possível carregar
+            os pagamentos deste jogo.
+
+          </td>
+
+        </tr>
+      `;
+
+    return;
+  }
+
+
   const units =
-    (
-      await SB
-        .from(
-          'unit_payments'
-        )
-        .select('*')
-        .eq(
-          'game_id',
-          currentGame.id
-        )
-    ).data || [];
+    unitsResult.data ||
+    [];
+
+
+  /* =====================================================
+     TABELA DE PAGAMENTOS INDIVIDUAIS
+  ===================================================== */
 
   $('unitTable').innerHTML =
     units
       .map(
         row => {
+
           const player =
             players.find(
               p =>
@@ -3386,17 +3490,22 @@ async function renderPayments() {
                 row.player_id
             );
 
+
           return `
             <tr>
 
               <td>
+
                 ${esc(
                   player?.name ||
                   'Jogador removido'
                 )}
+
               </td>
 
+
               <td>
+
                 <input
                   type="number"
                   min="0"
@@ -3410,38 +3519,53 @@ async function renderPayments() {
                     this.value
                   )"
                 >
+
               </td>
 
+
               <td>
-                <span class="badge ${
-                  row.paid
-                    ? 'paid'
-                    : 'pending'
-                }">
+
+                <span
+                  class="badge ${
+                    row.paid
+                      ? 'paid'
+                      : 'pending'
+                  }"
+                >
+
                   ${
                     row.paid
                       ? 'Pago'
                       : 'Pendente'
                   }
+
                 </span>
+
               </td>
 
+
               <td>
+
                 <button
                   onclick="toggleUnit(
                     '${row.player_id}',
                     ${!!row.paid}
                   )"
                 >
+
                   ${
                     row.paid
                       ? 'Desmarcar'
                       : 'Marcar pago'
                   }
+
                 </button>
+
               </td>
 
+
               <td>
+
                 <button
                   onclick="removeUnit(
                     '${row.player_id}'
@@ -3449,6 +3573,7 @@ async function renderPayments() {
                 >
                   🗑️
                 </button>
+
               </td>
 
             </tr>
@@ -3456,15 +3581,19 @@ async function renderPayments() {
         }
       )
       .join('') ||
+
     `
       <tr>
+
         <td colspan="5">
-          Nenhuma cobrança individual neste jogo.
+
+          Nenhuma cobrança individual
+          neste jogo.
+
         </td>
+
       </tr>
     `;
-
-  await renderPaymentHistory();
 }
 
 
@@ -3960,6 +4089,7 @@ function unitCashDescription(
 
 
 async function syncUnitCash(
+async function syncUnitCash(
   gameId,
   playerId,
   amount
@@ -3970,8 +4100,11 @@ async function syncUnitCash(
     ) ||
     amount <= 0
   ) {
-    return;
+    throw new Error(
+      'Valor do pagamento individual inválido.'
+    );
   }
+
 
   const player =
     players.find(
@@ -3980,6 +4113,7 @@ async function syncUnitCash(
         playerId
     );
 
+
   const game =
     allGames.find(
       g =>
@@ -3987,30 +4121,81 @@ async function syncUnitCash(
         gameId
     );
 
-  const description =
-    unitCashDescription(
-      gameId,
-      playerId
+
+  if (!game) {
+    throw new Error(
+      'Jogo do pagamento individual não encontrado.'
+    );
+  }
+
+
+  const playerName =
+    player?.name ||
+    'Jogador removido';
+
+
+  const gameDate =
+    dateBR(
+      game.game_date
     );
 
-  const existing =
-    (
-      await SB
-        .from(
-          'cash_entries'
-        )
-        .select('id')
-        .eq(
-          'description',
-          description
-        )
-        .maybeSingle()
-    ).data;
+
+  /*
+    Descrição que aparecerá diretamente
+    no Caixa.
+
+    Exemplo:
+
+    Pagamento individual | Gui Karol | Jogo 25/09/2026
+  */
+
+  const description =
+    `Pagamento individual | ${playerName} | Jogo ${gameDate}`;
+
+
+  /*
+    Usamos uma descrição técnica auxiliar
+    somente para localizar o lançamento
+    existente sem criar duplicidade.
+
+    Ela não é exibida no Caixa.
+  */
+
+  const technicalDescription =
+    `Pagamento individual | jogo:${gameId} | jogador:${playerId}`;
+
+
+  /* =====================================================
+     PROCURAR LANÇAMENTO EXISTENTE
+  ===================================================== */
+
+  const existingResult =
+    await SB
+      .from(
+        'cash_entries'
+      )
+      .select('id')
+      .or(
+        `description.eq.${technicalDescription},description.eq.${description}`
+      )
+      .maybeSingle();
+
+
+  if (
+    existingResult.error
+  ) {
+    throw existingResult.error;
+  }
+
+
+  /* =====================================================
+     DADOS DO CAIXA
+  ===================================================== */
 
   const payload = {
+
     entry_date:
-      game?.game_date ||
-      todayKey(),
+      game.game_date,
 
     type:
       'entrada',
@@ -4021,21 +4206,47 @@ async function syncUnitCash(
     description,
 
     amount
+
   };
 
-  if (existing) {
-    await SB
-      .from(
-        'cash_entries'
-      )
-      .update(
-        payload
-      )
-      .eq(
-        'id',
-        existing.id
-      );
-  } else {
+
+  /* =====================================================
+     ATUALIZAR LANÇAMENTO EXISTENTE
+  ===================================================== */
+
+  if (
+    existingResult.data
+  ) {
+
+    const updateResult =
+      await SB
+        .from(
+          'cash_entries'
+        )
+        .update(
+          payload
+        )
+        .eq(
+          'id',
+          existingResult.data.id
+        );
+
+
+    if (
+      updateResult.error
+    ) {
+      throw updateResult.error;
+    }
+
+    return;
+  }
+
+
+  /* =====================================================
+     CRIAR NOVO LANÇAMENTO
+  ===================================================== */
+
+  const insertResult =
     await SB
       .from(
         'cash_entries'
@@ -4043,10 +4254,14 @@ async function syncUnitCash(
       .insert(
         payload
       );
+
+
+  if (
+    insertResult.error
+  ) {
+    throw insertResult.error;
   }
 }
-
-
 async function removeUnitCash(
   gameId,
   playerId
