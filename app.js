@@ -6330,8 +6330,19 @@ async function loadPlayer(silent = false) {
       }))
     })),
 
-    var: d.var || [],
-    settings: d.settings || {}
+      var: d.var || [],
+    settings: d.settings || {},
+
+    finance: d.finance || {
+      cash: {
+        initial: 0,
+        in: 0,
+        out: 0,
+        balance: 0,
+        entries: []
+      },
+      payments: []
+    }
   };
 
   setMode('player');
@@ -6514,48 +6525,293 @@ function renderPlayer() {
       `;
   }
 
-  if ($('playerVar')) {
-    $('playerVar').innerHTML =
-      (
-        d.var ||
-        []
+   if ($('playerFinance')) {
+
+    const finance =
+      d.finance || {};
+
+    const cash =
+      finance.cash || {};
+
+    const payments =
+      Array.isArray(
+        finance.payments
       )
+        ? finance.payments
+        : [];
+
+    const cashEntries =
+      Array.isArray(
+        cash.entries
+      )
+        ? cash.entries
+        : [];
+
+
+    const cashTypeLabel =
+      type =>
+        type === 'in'
+          ? 'Entrada'
+          : 'Saída';
+
+
+    const cashTypePrefix =
+      type =>
+        type === 'in'
+          ? '+'
+          : '-';
+
+
+    const paymentRows =
+      payments
         .map(
-          v => `
-            <div class="mediaRow">
+          payment => `
+            <tr>
 
-              <div>
-                <b>
-                  ${esc(
-                    v.title
-                  )}
-                </b>
+              <td>
+                ${dateBR(
+                  payment.date
+                )}
+              </td>
 
-                <small>
-                  ${dateBR(
-                    v.link_date
-                  )}
-                </small>
-              </div>
+              <td>
+                ${esc(
+                  payment.player_name ||
+                  '—'
+                )}
+              </td>
 
-              <a
-                target="_blank"
-                href="${esc(
-                  v.url
-                )}"
-              >
-                Assistir
-              </a>
+              <td>
+                ${esc(
+                  payment.payment_type ||
+                  '—'
+                )}
+              </td>
+
+              <td>
+                ${money(
+                  payment.amount
+                )}
+              </td>
+
+            </tr>
+          `
+        )
+        .join('');
+
+
+    const cashRows =
+      cashEntries
+        .map(
+          entry => `
+            <tr>
+
+              <td>
+                ${dateBR(
+                  entry.date
+                )}
+              </td>
+
+              <td>
+                ${esc(
+                  entry.category ||
+                  '—'
+                )}
+              </td>
+
+              <td>
+                ${esc(
+                  entry.description ||
+                  '—'
+                )}
+              </td>
+
+              <td>
+                ${cashTypeLabel(
+                  entry.type
+                )}
+              </td>
+
+              <td>
+                ${cashTypePrefix(
+                  entry.type
+                )}${money(
+                  entry.amount
+                )}
+              </td>
+
+            </tr>
+          `
+        )
+        .join('');
+
+
+    $('playerFinance').innerHTML = `
+
+      <!-- RESUMO DO CAIXA -->
+
+      <div
+        style="
+          display:grid;
+          grid-template-columns:
+            repeat(auto-fit,minmax(150px,1fr));
+          gap:10px;
+          margin-bottom:18px;
+        "
+      >
+
+        <div class="card">
+
+          <div class="muted">
+            Saldo inicial
+          </div>
+
+          <strong>
+            ${money(
+              cash.initial
+            )}
+          </strong>
+
+        </div>
+
+
+        <div class="card">
+
+          <div class="muted">
+            Entradas
+          </div>
+
+          <strong>
+            ${money(
+              cash.in
+            )}
+          </strong>
+
+        </div>
+
+
+        <div class="card">
+
+          <div class="muted">
+            Saídas
+          </div>
+
+          <strong>
+            ${money(
+              cash.out
+            )}
+          </strong>
+
+        </div>
+
+
+        <div class="card">
+
+          <div class="muted">
+            Saldo atual
+          </div>
+
+          <strong>
+            ${money(
+              cash.balance
+            )}
+          </strong>
+
+        </div>
+
+      </div>
+
+
+      <!-- HISTÓRICO DE PAGAMENTOS -->
+
+      <h3>
+        💳 Histórico de pagamentos
+      </h3>
+
+      ${
+        paymentRows
+
+          ? `
+            <div
+              class="tableWrap"
+              style="margin-bottom:20px"
+            >
+
+              <table>
+
+                <thead>
+
+                  <tr>
+                    <th>Data</th>
+                    <th>Jogador</th>
+                    <th>Tipo</th>
+                    <th>Valor</th>
+                  </tr>
+
+                </thead>
+
+                <tbody>
+                  ${paymentRows}
+                </tbody>
+
+              </table>
 
             </div>
           `
-        )
-        .join('') ||
-      `
-        <div class="notice">
-          Nenhum vídeo compartilhado.
-        </div>
-      `;
+
+          : `
+            <div class="notice">
+              Nenhum pagamento registrado.
+            </div>
+          `
+      }
+
+
+      <!-- MOVIMENTAÇÕES DO CAIXA -->
+
+      <h3>
+        🏦 Movimentações do caixa
+      </h3>
+
+      ${
+        cashRows
+
+          ? `
+            <div
+              class="tableWrap"
+            >
+
+              <table>
+
+                <thead>
+
+                  <tr>
+                    <th>Data</th>
+                    <th>Categoria</th>
+                    <th>Descrição</th>
+                    <th>Tipo</th>
+                    <th>Valor</th>
+                  </tr>
+
+                </thead>
+
+                <tbody>
+                  ${cashRows}
+                </tbody>
+
+              </table>
+
+            </div>
+          `
+
+          : `
+            <div class="notice">
+              Nenhuma movimentação registrada.
+            </div>
+          `
+      }
+
+    `;
   }
 
   if ($('playerSpotify')) {
