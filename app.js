@@ -280,6 +280,28 @@ async function init() {
     return;
   }
 
+  /*
+    Rota administrativa: /?admin
+    Deve abrir a tela de login quando não houver sessão.
+    Sem este bloco, o app caía novamente em 'landing'.
+  */
+  if (query.has('admin')) {
+    const adminSession =
+      await SB.auth.getSession();
+
+    session =
+      adminSession.data?.session ||
+      null;
+
+    if (session && await checkAdmin()) {
+      await enterAdmin();
+    } else {
+      setMode('adminLogin');
+    }
+
+    return;
+  }
+
   const result =
     await SB.auth.getSession();
 
@@ -6201,6 +6223,7 @@ SB.auth.onAuthStateChange(
 function goAdmin() {
   goAdminLogin();
 }
+window.goAdmin = goAdmin;
 
 function addPlayer() {
   const url = registerUrl();
