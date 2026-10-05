@@ -2436,7 +2436,7 @@ async function drawTeams() {
           team_no:
             i + 1,
 
-          total_skill_level:
+          total_skill:
             sum(
               teamPlayers
             )
@@ -2512,7 +2512,7 @@ async function renderTeamsAdmin() {
       await SB
         .from('teams')
         .select(
-          'id,name,total_skill'
+          'id,team_no,total_skill'
         )
         .eq(
           'game_id',
@@ -2651,7 +2651,7 @@ async function movePlayerFromTeam(
       await SB
         .from('teams')
         .select(
-          'id,name'
+          'id,team_no'
         )
         .eq(
           'game_id',
@@ -2809,7 +2809,7 @@ async function recalculateTeamScores() {
     await SB
       .from('teams')
       .update({
-        total_skill_level:
+        total_skill:
           score
       })
       .eq(
@@ -2834,7 +2834,7 @@ async function sendTeamsWhatsApp() {
       await SB
         .from('teams')
         .select(
-          'id,name'
+          'id,team_no'
         )
         .eq(
           'game_id',
@@ -5774,7 +5774,7 @@ async function loadPlayer(silent = false) {
   playerData = {
     player: {
       ...d.player,
-      skill_score: SKILLS[d.player.skill_level_level] || 0,
+      skill_score: SKILLS[d.player.skill_level] || 0,
       access_token: playerToken
     },
 
@@ -5784,7 +5784,7 @@ async function loadPlayer(silent = false) {
       id: t.team_no,
       team_no: t.team_no,
       name: `Time ${t.team_no}`,
-      total_skill_level: t.total_skill,
+      total_skill: t.total_skill,
       members: (t.members || []).map(m => ({
         ...m,
         skill_score: SKILLS[m.skill_level] || 0
