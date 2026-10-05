@@ -1,3 +1,4 @@
+/* VERSÃO CORRIGIDA A PARTIR DO APP ORIGINAL DE 6.166 LINHAS */
 const SB = supabase.createClient(
   VOLEI_CONFIG.supabaseUrl,
   VOLEI_CONFIG.supabaseAnonKey
@@ -554,7 +555,7 @@ async function loadAdmin() {
 
   const state =
     await SB
-      .from('app_state')
+      .from('group_settings')
       .select(
         'invite_token,cash_initial'
       )
@@ -580,7 +581,7 @@ if (!window.__INVITE_TOKEN) {
 
   const inviteUpdate =
     await SB
-      .from('app_state')
+      .from('group_settings')
       .update({
         invite_token:
           newToken,
@@ -782,7 +783,7 @@ async function getCashSummary() {
   const [stateResult, entriesResult] =
     await Promise.all([
       SB
-        .from('app_state')
+        .from('group_settings')
         .select(
           'cash_initial'
         )
@@ -815,8 +816,8 @@ async function getCashSummary() {
       );
 
     if (
-      row.type === 'entrada' ||
-      row.type === 'in'
+      row.entry_type === 'entrada' ||
+      row.entry_type === 'in'
     ) {
       balance += amount;
     } else {
@@ -929,14 +930,14 @@ async function renderPlayers() {
             <td>
               ${
                 SKILL_LABEL[
-                  p.skill
+                  p.skill_level
                 ] ||
-                p.skill
+                p.skill_level
               }
             </td>
 
             <td>
-              ${p.skill_score}
+              ${p.skill_level_score}
             </td>
 
             <td>
@@ -1003,6 +1004,27 @@ async function renderPlayers() {
 }
 
 
+
+async function copyPlayerLink(id) {
+  const player = players.find(p => p.id === id);
+
+  if (!player?.access_token) {
+    toast('Este jogador não possui link de acesso.');
+    return;
+  }
+
+  const link = playerUrl(player.access_token);
+
+  try {
+    await navigator.clipboard.writeText(link);
+    toast('Link do jogador copiado.');
+  } catch (error) {
+    console.error('Erro ao copiar link:', error);
+    toast(link);
+  }
+}
+
+
 async function editPlayer(id) {
   const player =
     players.find(
@@ -1027,7 +1049,7 @@ async function editPlayer(id) {
   const skill =
     prompt(
       'Habilidade:\niniciante\nbasico\nintermediario\navancado\nexpert',
-      player.skill
+      player.skill_level
     );
 
   if (skill === null) {
@@ -1046,7 +1068,7 @@ async function editPlayer(id) {
         name:
           name.trim(),
 
-        skill:
+        skill_level:
           normalized,
 
         skill_score:
@@ -2104,9 +2126,9 @@ async function gamePlayerRows(
                       <td>
                         ${
                           SKILL_LABEL[
-                            p.skill
+                            p.skill_level
                           ] ||
-                          p.skill
+                          p.skill_level
                         }
                       </td>
 
@@ -2411,10 +2433,10 @@ async function drawTeams() {
           game_id:
             currentGame.id,
 
-          name:
-            teamName,
+          team_no:
+            i + 1,
 
-          total_skill:
+          total_skill_level:
             sum(
               teamPlayers
             )
@@ -2553,9 +2575,9 @@ async function renderTeamsAdmin() {
           <div class="team">
 
             <h3>
-              ${esc(
-                t.name
-              )}
+              Time ${
+                t.team_no
+              }
 
               <small>
                 ${
@@ -2583,7 +2605,7 @@ async function renderTeamsAdmin() {
                             <small>
                               ${
                                 SKILL_LABEL[
-                                  p.skill
+                                  p.skill_level
                                 ] || ''
                               }
                             </small>
@@ -2670,7 +2692,7 @@ async function movePlayerFromTeam(
     available
       .map(
         (t, i) =>
-          `${i + 1} - ${t.name}`
+          `${i + 1} - Time ${t.team_no}`
       )
       .join('\n');
 
@@ -2787,7 +2809,7 @@ async function recalculateTeamScores() {
     await SB
       .from('teams')
       .update({
-        total_skill:
+        total_skill_level:
           score
       })
       .eq(
@@ -2848,7 +2870,7 @@ async function sendTeamsWhatsApp() {
     ts
       .map(
         t =>
-          `${t.name.toUpperCase()}:\n` +
+          `TIME ${t.team_no}:\n` +
           members
             .filter(
               m =>
@@ -4053,7 +4075,7 @@ async function saveCashInitial() {
 
   const r =
     await SB
-      .from('app_state')
+      .from('group_settings')
       .update({
         cash_initial:
           value,
@@ -4411,9 +4433,9 @@ async function addCashEntry(
         entry_date:
           date,
 
-        type:
-          type,
+        entry_type:
 
+          type,
         category:
           category,
 
@@ -4484,7 +4506,7 @@ async function renderCash() {
   const [state, result] =
     await Promise.all([
       SB
-        .from('app_state')
+        .from('group_settings')
         .select(
           'cash_initial'
         )
@@ -4568,9 +4590,9 @@ async function renderCash() {
       );
 
     if (
-      row.type ===
+      row.entry_type ===
         'entrada' ||
-      row.type ===
+      row.entry_type ===
         'in'
     ) {
 
@@ -4666,9 +4688,9 @@ async function renderCash() {
 
             <td>
               ${
-                row.type ===
+                row.entry_type ===
                   'entrada' ||
-                row.type ===
+                row.entry_type ===
                   'in'
                   ? 'Entrada'
                   : 'Saída'
@@ -5239,7 +5261,7 @@ async function renderSettings() {
 
   if ($('adminPlayerSkill')) {
     $('adminPlayerSkill').value =
-      mine?.skill ||
+      mine?.skill_level ||
       'intermediario';
   }
 
@@ -5390,7 +5412,7 @@ async function rotateInvite() {
 
   const r =
     await SB
-      .from('app_state')
+      .from('group_settings')
       .update({
         invite_token:
           newToken,
@@ -5400,7 +5422,7 @@ async function rotateInvite() {
       })
       .eq(
         'id',
-        'true'
+        true
       );
 
   if (r.error) {
@@ -5683,6 +5705,43 @@ async function saveMyPlayer(e) {
 }
 
 
+
+
+/* =========================================================
+   ACESSO DO ADMINISTRADOR COMO JOGADOR
+   Compatibilidade com o botão existente no index.html.
+========================================================= */
+
+function goPlayerFromAdmin() {
+  try {
+    const key = adminPlayerStorageKey();
+    const savedId = key ? localStorage.getItem(key) : null;
+
+    if (!savedId) {
+      toast('Cadastre primeiro seu jogador em Administração.');
+      return;
+    }
+
+    const player = players.find(p => p.id === savedId);
+
+    if (!player) {
+      toast('Seu cadastro de jogador não foi encontrado.');
+      return;
+    }
+
+    if (!player.access_token) {
+      toast('Este jogador ainda não possui um link de acesso.');
+      return;
+    }
+
+    window.open(playerUrl(player.access_token), '_blank');
+  } catch (error) {
+    console.error('Erro ao abrir acesso do administrador:', error);
+    toast('Não foi possível abrir seu acesso de jogador.');
+  }
+}
+
+
 /* =========================================================
    PLAYER
 ========================================================= */
@@ -5715,7 +5774,7 @@ async function loadPlayer(silent = false) {
   playerData = {
     player: {
       ...d.player,
-      skill_score: SKILLS[d.player.skill_level] || 0,
+      skill_score: SKILLS[d.player.skill_level_level] || 0,
       access_token: playerToken
     },
 
@@ -5725,7 +5784,7 @@ async function loadPlayer(silent = false) {
       id: t.team_no,
       team_no: t.team_no,
       name: `Time ${t.team_no}`,
-      total_skill: t.total_skill,
+      total_skill_level: t.total_skill,
       members: (t.members || []).map(m => ({
         ...m,
         skill_score: SKILLS[m.skill_level] || 0
@@ -5761,8 +5820,8 @@ function renderPlayer() {
     $('playerSkill').textContent =
       `Nível: ${
         SKILL_LABEL[
-          p.skill
-        ] || p.skill
+          p.skill_level
+        ] || p.skill_level
       }`;
   }
 
@@ -5839,7 +5898,7 @@ function renderPlayer() {
                       <span>
                         ${
                           SKILL_LABEL[
-                            member.skill
+                            member.skill_level
                           ]
                         }
                       </span>
@@ -5894,7 +5953,7 @@ function renderPlayer() {
                         <span>
                           ${
                             SKILL_LABEL[
-                              member.skill
+                              member.skill_level
                             ]
                           }
                         </span>
