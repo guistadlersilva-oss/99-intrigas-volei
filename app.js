@@ -1,3 +1,4 @@
+window.goAdmin = function goAdmin() { window.location.href = window.location.pathname + '?admin'; };
 /* VOLEI BUILD 2026-10-05 — TEAM SCHEMA: team_no + total_skill */
 /* VERSÃO CORRIGIDA A PARTIR DO APP ORIGINAL DE 6.166 LINHAS */
 const SB = supabase.createClient(
@@ -275,6 +276,28 @@ async function init() {
       query.get('jogador');
 
     await loadPlayer();
+
+    return;
+  }
+
+  /*
+    Rota administrativa: /?admin
+    Deve abrir a tela de login quando não houver sessão.
+    Sem este bloco, o app caía novamente em 'landing'.
+  */
+  if (query.has('admin')) {
+    const adminSession =
+      await SB.auth.getSession();
+
+    session =
+      adminSession.data?.session ||
+      null;
+
+    if (session && await checkAdmin()) {
+      await enterAdmin();
+    } else {
+      setMode('adminLogin');
+    }
 
     return;
   }
@@ -2509,39 +2532,23 @@ function startTeamDrag(event, playerId, fromTeamId) {
   draggedTeamPlayer = { playerId, fromTeamId };
   try {
     event.dataTransfer.effectAllowed = 'move';
-    event.dataTransfer.setData(
-      'text/plain',
-      JSON.stringify(draggedTeamPlayer)
-    );
+    event.dataTransfer.setData('text/plain', JSON.stringify(draggedTeamPlayer));
   } catch (error) {
     console.warn('Drag and drop não disponível:', error);
   }
-
   event.currentTarget.classList.add('dragging');
 }
 
 function endTeamDrag(event) {
   event.currentTarget?.classList.remove('dragging');
   draggedTeamPlayer = null;
-  document.querySelectorAll('.team.drag-over').forEach(team => {
-    team.classList.remove('drag-over');
-  });
+  document.querySelectorAll('.team.drag-over').forEach(team => team.classList.remove('drag-over'));
 }
 
 function allowTeamDrop(event, targetTeamId) {
   event.preventDefault();
-
-  const payload = draggedTeamPlayer;
-  if (!payload || payload.fromTeamId === targetTeamId) {
-    return;
-  }
-
-  try {
-    event.dataTransfer.dropEffect = 'move';
-  } catch (error) {
-    // Alguns navegadores podem não expor dataTransfer no evento.
-  }
-
+  if (!draggedTeamPlayer || draggedTeamPlayer.fromTeamId === targetTeamId) return;
+  try { event.dataTransfer.dropEffect = 'move'; } catch (error) {}
   event.currentTarget.classList.add('drag-over');
 }
 
@@ -2554,7 +2561,6 @@ async function dropTeam(event, targetTeamId) {
   event.currentTarget.classList.remove('drag-over');
 
   let payload = draggedTeamPlayer;
-
   if (!payload) {
     try {
       payload = JSON.parse(event.dataTransfer.getData('text/plain') || 'null');
@@ -2562,16 +2568,9 @@ async function dropTeam(event, targetTeamId) {
       payload = null;
     }
   }
-
   draggedTeamPlayer = null;
 
-  if (!currentGame || !payload?.playerId || !payload?.fromTeamId) {
-    return;
-  }
-
-  if (payload.fromTeamId === targetTeamId) {
-    return;
-  }
+  if (!currentGame || !payload?.playerId || !payload?.fromTeamId || payload.fromTeamId === targetTeamId) return;
 
   const player = players.find(p => p.id === payload.playerId);
   if (!player) {
@@ -2596,17 +2595,58 @@ async function dropTeam(event, targetTeamId) {
   await renderGames();
 }
 
-async function renderTeamsAdmin() {
+async function recalculateTeamScores() {
   if (!currentGame) {
     return;
   }
 
-  const teamsResult =
-    await SB
+  const teamsResult = await SB
+    .from('teams')
+    .select('id')
+    .eq('game_id', currentGame.id);
+
+  if (teamsResult.error) {
+    throw teamsResult.error;
+  }
+
+  for (const team of teamsResult.data || []) {
+    const membersResult = await SB
+      .from('team_members')
+      .select('player_id')
+      .eq('team_id', team.id);
+
+    if (membersResult.error) {
+      throw membersResult.error;
+    }
+
+    const score = sum(
+      (membersResult.data || [])
+        .map(m => players.find(p => p.id === m.player_id))
+        .filter(Boolean)
+    );
+
+    const updateResult = await SB
       .from('teams')
-      .select('id,team_no,total_skill')
-      .eq('game_id', currentGame.id)
-      .order('team_no');
+      .update({ total_skill: score })
+      .eq('id', team.id);
+
+    if (updateResult.error) {
+      throw updateResult.error;
+    }
+  }
+}
+
+async function renderTeamsAdmin() {
+  if (!currentGame) {
+    if ($('teamsAdmin')) $('teamsAdmin').innerHTML = '';
+    return;
+  }
+
+  const teamsResult = await SB
+    .from('teams')
+    .select('id,team_no,total_skill')
+    .eq('game_id', currentGame.id)
+    .order('team_no');
 
   if (teamsResult.error) {
     console.error('Erro ao carregar times:', teamsResult.error);
@@ -2625,12 +2665,18 @@ async function renderTeamsAdmin() {
     return;
   }
 
-  const members = (
-    await SB
-      .from('team_members')
-      .select('team_id,player_id')
-      .in('team_id', ts.map(t => t.id))
-  ).data || [];
+  const membersResult = await SB
+    .from('team_members')
+    .select('team_id,player_id')
+    .in('team_id', ts.map(t => t.id));
+
+  if (membersResult.error) {
+    console.error('Erro ao carregar jogadores dos times:', membersResult.error);
+    toast('Erro ao carregar jogadores dos times: ' + membersResult.error.message);
+    return;
+  }
+
+  const members = membersResult.data || [];
 
   $('teamsAdmin').innerHTML = ts.map(t => {
     const teamMembers = members
@@ -2645,105 +2691,31 @@ async function renderTeamsAdmin() {
         ondragleave="leaveTeamDrop(event)"
         ondrop="dropTeam(event, '${t.id}')"
       >
-
         <h3>
           Time ${t.team_no}
-          <small>
-            ${teamMembers.length} jogadores
-            ·
-            ${sum(teamMembers)} pontos
-          </small>
+          <small>${teamMembers.length} jogadores · ${sum(teamMembers)} pontos</small>
         </h3>
 
-        ${
-          teamMembers.length
-            ? teamMembers.map(p => `
-                <div
-                  class="person"
-                  draggable="true"
-                  title="Arraste para outro time"
-                  ondragstart="startTeamDrag(event, '${p.id}', '${t.id}')"
-                  ondragend="endTeamDrag(event)"
-                >
-                  <span>
-                    ${esc(p.name)}
-                    <small>
-                      ${SKILL_LABEL[p.skill_level] || ''}
-                    </small>
-                  </span>
-                  <span aria-hidden="true" title="Arraste para mover">↔️</span>
-                </div>
-              `).join('')
-            : `
-                <div class="muted">
-                  Arraste um jogador para este time.
-                </div>
-              `
-        }
-
+        ${teamMembers.length ? teamMembers.map(p => `
+          <div
+            class="person"
+            draggable="true"
+            title="Arraste para outro time"
+            ondragstart="startTeamDrag(event, '${p.id}', '${t.id}')"
+            ondragend="endTeamDrag(event)"
+          >
+            <span>
+              ${esc(p.name)}
+              <small>${SKILL_LABEL[p.skill_level] || ''}</small>
+            </span>
+            <span aria-hidden="true">↔️</span>
+          </div>
+        `).join('') : `
+          <div class="muted">Arraste um jogador para este time.</div>
+        `}
       </div>
     `;
   }).join('');
-}
-
-async function recalculateTeamScores() {
-  if (!currentGame) {
-    return;
-  }
-
-  const teams =
-    (
-      await SB
-        .from('teams')
-        .select('id')
-        .eq(
-          'game_id',
-          currentGame.id
-        )
-    ).data || [];
-
-  for (
-    const team of teams
-  ) {
-    const members =
-      (
-        await SB
-          .from(
-            'team_members'
-          )
-          .select(
-            'player_id'
-          )
-          .eq(
-            'team_id',
-            team.id
-          )
-      ).data || [];
-
-    const score =
-      sum(
-        members
-          .map(m =>
-            players.find(
-              p =>
-                p.id ===
-                m.player_id
-            )
-          )
-          .filter(Boolean)
-      );
-
-    await SB
-      .from('teams')
-      .update({
-        total_skill:
-          score
-      })
-      .eq(
-        'id',
-        team.id
-      );
-  }
 }
 
 
@@ -2756,21 +2728,30 @@ async function sendTeamsWhatsApp() {
     return;
   }
 
+  const teamsResult =
+    await SB
+      .from('teams')
+      .select(
+        'id,team_no'
+      )
+      .eq(
+        'game_id',
+        currentGame.id
+      )
+      .order(
+        'team_no'
+      );
+
+  if (teamsResult.error) {
+    toast(
+      'Erro ao carregar times: ' +
+      teamsResult.error.message
+    );
+    return;
+  }
+
   const ts =
-    (
-      await SB
-        .from('teams')
-        .select(
-          'id,team_no'
-        )
-        .eq(
-          'game_id',
-          currentGame.id
-        )
-        .order(
-          'created_at'
-        )
-    ).data || [];
+    teamsResult.data || [];
 
   const members =
     (
@@ -3392,32 +3373,651 @@ async function toggleMonthly(
 
 
 /* =====================================================
-   FUNÇÕES LEGADAS DE PAGAMENTO INDIVIDUAL
-   NÃO SÃO MAIS USADAS PELA INTERFACE.
-   Os registros antigos permanecem no banco.
+   PAGAMENTOS INDIVIDUAIS
 ===================================================== */
 
-async function editUnitAmount() {
-  toast(
-    'Pagamentos individuais não são mais usados. Registre a movimentação no Caixa.'
-  );
+async function renderUnitPayments() {
+  const select = $('payGameSelect');
+  const table = $('unitTable');
+
+  if (!select || !table) {
+    return;
+  }
+
+  if (
+    !payGameId ||
+    !games.some(
+      g => g.id === payGameId
+    )
+  ) {
+    payGameId =
+      currentGame?.id ||
+      games[0]?.id ||
+      null;
+  }
+
+  select.innerHTML =
+    games
+      .map(
+        g => `
+          <option
+            value="${g.id}"
+            ${
+              g.id === payGameId
+                ? 'selected'
+                : ''
+            }
+          >
+            ${dateBR(g.game_date)}
+          </option>
+        `
+      )
+      .join('') ||
+    '<option value="">Nenhum jogo cadastrado</option>';
+
+  if (!payGameId) {
+    table.innerHTML = `
+      <tr>
+        <td colspan="4">
+          Nenhum jogo cadastrado.
+        </td>
+      </tr>
+    `;
+    return;
+  }
+
+  const result =
+    await SB
+      .from('unit_payments')
+      .select('*')
+      .eq(
+        'game_id',
+        payGameId
+      );
+
+  if (result.error) {
+    toast(
+      'Erro ao carregar pagamentos individuais: ' +
+      result.error.message
+    );
+    return;
+  }
+
+  const rows =
+    result.data || [];
+
+  table.innerHTML =
+    rows
+      .map(
+        row => {
+          const player =
+            players.find(
+              p =>
+                p.id ===
+                row.player_id
+            );
+
+          return `
+            <tr>
+              <td>
+                ${esc(
+                  player?.name ||
+                  'Jogador removido'
+                )}
+              </td>
+
+              <td>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value="${Number(
+                    row.amount || 0
+                  ).toFixed(2)}"
+                  style="max-width:110px"
+                  onchange="editUnitAmount('${row.player_id}',this.value)"
+                >
+              </td>
+
+              <td>
+                <span
+                  class="badge ${
+                    row.paid
+                      ? 'paid'
+                      : 'pending'
+                  }"
+                >
+                  ${
+                    row.paid
+                      ? 'Pago'
+                      : 'Pendente'
+                  }
+                </span>
+              </td>
+
+              <td>
+                <div class="actions">
+                  <button
+                    class="btnSmall"
+                    onclick="toggleUnit('${row.player_id}',${!!row.paid})"
+                  >
+                    ${
+                      row.paid
+                        ? 'Desmarcar'
+                        : 'Marcar pago'
+                    }
+                  </button>
+
+                  <button
+                    class="btnSmall btnDanger"
+                    onclick="removeUnit('${row.id}')"
+                  >
+                    🗑️
+                  </button>
+                </div>
+              </td>
+            </tr>
+          `;
+        }
+      )
+      .join('') ||
+    `
+      <tr>
+        <td colspan="4">
+          Nenhuma cobrança individual neste jogo.
+        </td>
+      </tr>
+    `;
+}
+
+async function changePayGame(value) {
+  payGameId =
+    value ||
+    null;
+
+  await renderUnitPayments();
 }
 
 async function addUnitCharge() {
+  if (!games.length) {
+    toast(
+      'Cadastre um jogo primeiro.'
+    );
+    return;
+  }
+
+  if (
+    !payGameId ||
+    !games.some(
+      g => g.id === payGameId
+    )
+  ) {
+    payGameId =
+      currentGame?.id ||
+      games[0]?.id ||
+      null;
+  }
+
+  const activePlayers =
+    players.filter(
+      p => p.active
+    );
+
+  if (!activePlayers.length) {
+    toast(
+      'Nenhum jogador ativo cadastrado.'
+    );
+    return;
+  }
+
+  const playerOptions =
+    activePlayers
+      .map(
+        (p, i) =>
+          `${i + 1} - ${p.name}`
+      )
+      .join('\n');
+
+  const answer =
+    prompt(
+      `Cobrança individual\\n\\n` +
+      `Escolha o jogador:\\n\\n` +
+      `${playerOptions}\\n\\n` +
+      `Digite o número:`
+    );
+
+  if (answer === null) {
+    return;
+  }
+
+  const playerIndex =
+    Number(answer) - 1;
+
+  if (
+    playerIndex < 0 ||
+    playerIndex >=
+      activePlayers.length
+  ) {
+    toast(
+      'Jogador inválido.'
+    );
+    return;
+  }
+
+  const player =
+    activePlayers[playerIndex];
+
+  const defaultAmount =
+    Number(
+      settings?.unit_fee ||
+      10
+    );
+
+  const amountAnswer =
+    prompt(
+      `Valor da cobrança para ${player.name}:`,
+      defaultAmount.toFixed(2)
+    );
+
+  if (amountAnswer === null) {
+    return;
+  }
+
+  const amount =
+    Number(
+      String(amountAnswer)
+        .replace(',', '.')
+    );
+
+  if (
+    !Number.isFinite(amount) ||
+    amount <= 0
+  ) {
+    toast(
+      'Informe um valor válido.'
+    );
+    return;
+  }
+
+  const result =
+    await SB
+      .from('unit_payments')
+      .upsert(
+        {
+          game_id:
+            payGameId,
+
+          player_id:
+            player.id,
+
+          amount,
+
+          paid:
+            false
+        },
+        {
+          onConflict:
+            'game_id,player_id'
+        }
+      );
+
+  if (result.error) {
+    toast(
+      'Erro ao criar cobrança individual: ' +
+      result.error.message
+    );
+    return;
+  }
+
+  const gp =
+    await SB
+      .from('game_players')
+      .upsert(
+        {
+          game_id:
+            payGameId,
+
+          player_id:
+            player.id,
+
+          present:
+            true,
+
+          payment_mode:
+            'individual'
+        },
+        {
+          onConflict:
+            'game_id,player_id'
+        }
+      );
+
+  if (gp.error) {
+    toast(
+      'Cobrança criada, mas não foi possível atualizar o jogo: ' +
+      gp.error.message
+    );
+    return;
+  }
+
+  await renderUnitPayments();
+
   toast(
-    'Pagamentos individuais não são mais usados. Registre a movimentação no Caixa.'
+    'Cobrança individual adicionada.'
   );
 }
 
-async function toggleUnit() {
-  toast(
-    'Pagamentos individuais não são mais usados. Registre a movimentação no Caixa.'
-  );
+async function syncUnitCash(
+  gameId,
+  playerId,
+  amount
+) {
+  const unit =
+    (
+      await SB
+        .from('unit_payments')
+        .select('id')
+        .eq(
+          'game_id',
+          gameId
+        )
+        .eq(
+          'player_id',
+          playerId
+        )
+        .maybeSingle()
+    ).data;
+
+  if (!unit) {
+    return;
+  }
+
+  const player =
+    players.find(
+      p =>
+        p.id ===
+        playerId
+    );
+
+  const tag =
+    `unit_payment:${unit.id}`;
+
+  await SB
+    .from('cash_entries')
+    .delete()
+    .like(
+      'description',
+      `%${tag}`
+    );
+
+  const result =
+    await SB
+      .from('cash_entries')
+      .insert({
+        entry_date:
+          todayKey(),
+
+        entry_type:
+          'in',
+
+        category:
+          'Individual',
+
+        description:
+          `Pagamento individual | ${
+            player?.name ||
+            'Jogador'
+          } | ${tag}`,
+
+        amount
+      });
+
+  if (result.error) {
+    throw result.error;
+  }
 }
 
-async function removeUnit() {
+async function toggleUnit(
+  playerId,
+  paid
+) {
+  if (!payGameId) {
+    toast(
+      'Selecione um jogo.'
+    );
+    return;
+  }
+
+  const unitResult =
+    await SB
+      .from('unit_payments')
+      .select('*')
+      .eq(
+        'game_id',
+        payGameId
+      )
+      .eq(
+        'player_id',
+        playerId
+      )
+      .maybeSingle();
+
+  if (unitResult.error) {
+    toast(
+      unitResult.error.message
+    );
+    return;
+  }
+
+  const unit =
+    unitResult.data;
+
+  if (!unit) {
+    toast(
+      'Cobrança individual não encontrada.'
+    );
+    return;
+  }
+
+  const newPaid =
+    !paid;
+
+  const updateResult =
+    await SB
+      .from('unit_payments')
+      .update({
+        paid:
+          newPaid
+      })
+      .eq(
+        'id',
+        unit.id
+      );
+
+  if (updateResult.error) {
+    toast(
+      updateResult.error.message
+    );
+    return;
+  }
+
+  try {
+    const tag =
+      `unit_payment:${unit.id}`;
+
+    if (newPaid) {
+      await syncUnitCash(
+        payGameId,
+        playerId,
+        Number(
+          unit.amount || 0
+        )
+      );
+    } else {
+      await SB
+        .from('cash_entries')
+        .delete()
+        .like(
+          'description',
+          `%${tag}`
+        );
+    }
+  } catch (e) {
+    // Reverte o status se o lançamento no caixa falhar.
+    await SB
+      .from('unit_payments')
+      .update({
+        paid:
+          paid
+      })
+      .eq(
+        'id',
+        unit.id
+      );
+
+    toast(
+      'Não foi possível atualizar o Caixa: ' +
+      (e?.message || 'erro desconhecido')
+    );
+    return;
+  }
+
   toast(
-    'Pagamentos individuais não são mais usados. Registre a movimentação no Caixa.'
+    newPaid
+      ? 'Pagamento individual registrado e lançado no caixa.'
+      : 'Pagamento individual desmarcado.'
+  );
+
+  await renderUnitPayments();
+}
+
+async function editUnitAmount(
+  playerId,
+  value
+) {
+  if (!payGameId) {
+    toast(
+      'Selecione um jogo.'
+    );
+    return;
+  }
+
+  const amount =
+    Number(
+      String(value)
+        .replace(',', '.')
+    );
+
+  if (
+    !Number.isFinite(amount) ||
+    amount < 0
+  ) {
+    toast(
+      'Valor inválido.'
+    );
+    return;
+  }
+
+  const result =
+    await SB
+      .from('unit_payments')
+      .update({
+        amount
+      })
+      .eq(
+        'game_id',
+        payGameId
+      )
+      .eq(
+        'player_id',
+        playerId
+      );
+
+  if (result.error) {
+    toast(
+      result.error.message
+    );
+    return;
+  }
+
+  const paid =
+    (
+      await SB
+        .from('unit_payments')
+        .select('paid,id')
+        .eq(
+          'game_id',
+          payGameId
+        )
+        .eq(
+          'player_id',
+          playerId
+        )
+        .maybeSingle()
+    ).data;
+
+  if (paid?.paid) {
+    try {
+      await syncUnitCash(
+        payGameId,
+        playerId,
+        amount
+      );
+    } catch (e) {
+      toast(
+        'Valor alterado, mas não foi possível atualizar o Caixa: ' +
+        (e?.message || 'erro desconhecido')
+      );
+      return;
+    }
+  }
+
+  toast(
+    'Valor individual atualizado.'
+  );
+
+  await renderUnitPayments();
+}
+
+async function removeUnit(
+  id
+) {
+  if (
+    !confirm(
+      'Remover esta cobrança individual? Se estiver paga, o valor sai do caixa.'
+    )
+  ) {
+    return;
+  }
+
+  await SB
+    .from('cash_entries')
+    .delete()
+    .like(
+      'description',
+      `%unit_payment:${id}`
+    );
+
+  const result =
+    await SB
+      .from('unit_payments')
+      .delete()
+      .eq(
+        'id',
+        id
+      );
+
+  if (result.error) {
+    toast(
+      result.error.message
+    );
+    return;
+  }
+
+  await renderUnitPayments();
+
+  toast(
+    'Cobrança individual removida.'
   );
 }
 
@@ -3541,27 +4141,36 @@ async function addHistoricalPayment() {
     adicionamos a entrada ao caixa.
   */
   if (!alreadyInCash) {
-    await SB
-      .from(
-        'cash_entries'
-      )
-      .insert({
-        entry_date:
-          paymentDate,
+    const cashResult =
+      await SB
+        .from(
+          'cash_entries'
+        )
+        .insert({
+          entry_date:
+            paymentDate,
 
-        type:
-          'entrada',
+          entry_type:
+            'in',
 
-        category:
-          type === 'mensal'
-            ? 'Mensalidade'
-            : 'Pagamento individual',
+          category:
+            type === 'mensal'
+              ? 'Mensalidade'
+              : 'Pagamento individual',
 
-        description:
-          `Histórico | ${playerName} | pagamento:${r.data.id}`,
+          description:
+            `Histórico | ${playerName} | pagamento:${r.data.id}`,
 
-        amount
-      });
+          amount
+        });
+
+    if (cashResult.error) {
+      toast(
+        'Histórico salvo, mas não foi possível lançar no Caixa: ' +
+        cashResult.error.message
+      );
+      return;
+    }
   }
 
   if ($('historyName')) {
@@ -4361,8 +4970,10 @@ async function addCashEntry(
           date,
 
         entry_type:
+          type === 'entrada'
+            ? 'in'
+            : 'out',
 
-          type,
         category:
           category,
 
@@ -4408,6 +5019,7 @@ async function addCashEntry(
 
   toggleCashNameField();
 
+  await renderCash();
 
   toast(
     type ===
@@ -6126,6 +6738,7 @@ SB.auth.onAuthStateChange(
 function goAdmin() {
   goAdminLogin();
 }
+window.goAdmin = goAdmin;
 
 function addPlayer() {
   const url = registerUrl();
@@ -6197,6 +6810,23 @@ function logoutPlayer() {
 /* =========================================================
    INICIALIZAÇÃO
 ========================================================= */
+
+
+/* =========================================================
+   EXPOSIÇÃO GLOBAL DOS PRINCIPAIS HANDLERS
+========================================================= */
+window.goAdmin = goAdmin;
+window.drawTeams = drawTeams;
+window.sendTeamsWhatsApp = sendTeamsWhatsApp;
+window.addCashEntry = addCashEntry;
+window.refreshPayments = refreshPayments;
+window.addMonthlyPayment = addMonthlyPayment;
+window.addUnitCharge = addUnitCharge;
+window.changePayGame = changePayGame;
+window.toggleUnit = toggleUnit;
+window.editUnitAmount = editUnitAmount;
+window.removeUnit = removeUnit;
+
 
 window.addEventListener(
   'load',
