@@ -537,9 +537,22 @@ async function loadAdmin() {
 
   if (s.error) {
     toast(
-      s.error.message
+      'Erro ao carregar configurações: ' + s.error.message
     );
+    return;
+  }
 
+  if (p.error) {
+    toast(
+      'Erro ao carregar jogadores: ' + p.error.message
+    );
+    return;
+  }
+
+  if (g.error) {
+    toast(
+      'Erro ao carregar jogos: ' + g.error.message
+    );
     return;
   }
 
@@ -817,7 +830,7 @@ async function getCashSummary() {
       SB
         .from('cash_entries')
         .select(
-          'type,amount'
+          'entry_type,amount'
         )
     ]);
 
@@ -2246,279 +2259,30 @@ async function saveGamePlayer(
 
 async function drawTeams() {
   if (!currentGame) {
-    toast(
-      'Nenhum jogo selecionado.'
-    );
-
+    toast('Nenhum jogo selecionado.');
     return;
   }
 
-  const gp =
-    (
-      await SB
-        .from(
-          'game_players'
-        )
-        .select(
-          'player_id'
-        )
-        .eq(
-          'game_id',
-          currentGame.id
-        )
-        .eq(
-          'present',
-          true
-        )
-    ).data || [];
+  try {
+    const result = await SB.rpc('draw_teams_balanced', {
+      p_game: currentGame.id
+    });
 
-  const ps =
-    gp
-      .map(x =>
-        players.find(
-          p =>
-            p.id ===
-            x.player_id
-        )
-      )
-      .filter(Boolean)
-      .sort(
-        (a, b) =>
-          Number(
-            b.skill_score
-          ) -
-          Number(
-            a.skill_score
-          )
-      );
-
-  if (!ps.length) {
-    toast(
-      'Nenhum jogador confirmado para este jogo.'
-    );
-
-    return;
-  }
-
-  const requestedTeams =
-    Number(
-      currentGame.teams_count
-    ) || 2;
-
-  const teamCount =
-    Math.min(
-      Math.max(
-        1,
-        requestedTeams
-      ),
-      ps.length
-    );
-
-  const baseSize =
-    Math.floor(
-      ps.length /
-        teamCount
-    );
-
-  const remainder =
-    ps.length %
-    teamCount;
-
-  const capacities =
-    Array.from(
-      {
-        length:
-          teamCount
-      },
-      (_, i) =>
-        baseSize +
-        (
-          i <
-          remainder
-            ? 1
-            : 0
-        )
-    );
-
-  const oldTeams =
-    (
-      await SB
-        .from('teams')
-        .select('id')
-        .eq(
-          'game_id',
-          currentGame.id
-        )
-    ).data || [];
-
-  if (oldTeams.length) {
-    const oldIds =
-      oldTeams.map(
-        x => x.id
-      );
-
-    await SB
-      .from(
-        'team_members'
-      )
-      .delete()
-      .in(
-        'team_id',
-        oldIds
-      );
-
-    await SB
-      .from('teams')
-      .delete()
-      .eq(
-        'game_id',
-        currentGame.id
-      );
-  }
-
-  const teams =
-    Array.from(
-      {
-        length:
-          teamCount
-      },
-      () => []
-    );
-
-  ps.forEach(
-    player => {
-      const available =
-        [
-          ...Array(
-            teamCount
-          ).keys()
-        ].filter(
-          i =>
-            teams[i]
-              .length <
-            capacities[i]
-        );
-
-      available.sort(
-        (a, b) => {
-          const skillDiff =
-            sum(
-              teams[a]
-            ) -
-            sum(
-              teams[b]
-            );
-
-          if (
-            skillDiff !==
-            0
-          ) {
-            return skillDiff;
-          }
-
-          const sizeDiff =
-            teams[a]
-              .length -
-            teams[b]
-              .length;
-
-          if (
-            sizeDiff !==
-            0
-          ) {
-            return sizeDiff;
-          }
-
-          return a - b;
-        }
-      );
-
-      teams[
-        available[0]
-      ].push(player);
-    }
-  );
-
-  for (
-    let i = 0;
-    i < teams.length;
-    i++
-  ) {
-    const teamPlayers =
-      teams[i];
-
-    const teamName =
-      `Time ${i + 1}`;
-
-    const result =
-      await SB
-        .from('teams')
-        .insert({
-          game_id:
-            currentGame.id,
-
-          team_no:
-            i + 1,
-
-          total_skill:
-            sum(
-              teamPlayers
-            )
-        })
-        .select()
-        .single();
-
-    if (
-      result.error
-    ) {
-      toast(
-        result.error.message
-      );
-
+    if (result.error) {
+      console.error('Erro ao sortear times:', result.error);
+      toast('Erro ao sortear times: ' + result.error.message);
       return;
     }
 
-    const team =
-      result.data;
+    toast(
+      `Times sorteados: ${result.data?.players || 0} jogadores em ${result.data?.teams || 0} times.`
+    );
 
-    if (
-      teamPlayers.length
-    ) {
-      const members =
-        teamPlayers.map(
-          player => ({
-            team_id:
-              team.id,
-
-            player_id:
-              player.id
-          })
-        );
-
-      const mr =
-        await SB
-          .from(
-            'team_members'
-          )
-          .insert(
-            members
-          );
-
-      if (mr.error) {
-        toast(
-          mr.error.message
-        );
-
-        return;
-      }
-    }
+    await renderGames();
+  } catch (error) {
+    console.error('Erro ao sortear times:', error);
+    toast('Erro ao sortear times: ' + (error?.message || 'erro desconhecido'));
   }
-
-  toast(
-    `Times sorteados! ${ps.length} jogadores em ${teamCount} times.`
-  );
-
-  await renderGames();
 }
 
 
@@ -3673,171 +3437,71 @@ async function changePayGame(value) {
 
 async function addUnitCharge() {
   if (!games.length) {
-    toast(
-      'Cadastre um jogo primeiro.'
-    );
+    toast('Cadastre um jogo primeiro.');
     return;
   }
 
-  if (
-    !payGameId ||
-    !games.some(
-      g => g.id === payGameId
-    )
-  ) {
-    payGameId =
-      currentGame?.id ||
-      games[0]?.id ||
-      null;
+  if (!payGameId || !games.some(g => g.id === payGameId)) {
+    payGameId = currentGame?.id || games[0]?.id || null;
   }
 
-  const activePlayers =
-    players.filter(
-      p => p.active
-    );
+  const activePlayers = players.filter(p => p.active);
 
   if (!activePlayers.length) {
-    toast(
-      'Nenhum jogador ativo cadastrado.'
-    );
+    toast('Nenhum jogador ativo cadastrado.');
     return;
   }
 
-  const playerOptions =
-    activePlayers
-      .map(
-        (p, i) =>
-          `${i + 1} - ${p.name}`
-      )
-      .join('\n');
+  const playerOptions = activePlayers
+    .map((p, i) => `${i + 1} - ${p.name}`)
+    .join('\n');
 
-  const answer =
-    prompt(
-      `Cobrança individual\\n\\n` +
-      `Escolha o jogador:\\n\\n` +
-      `${playerOptions}\\n\\n` +
-      `Digite o número:`
-    );
-
-  if (answer === null) {
-    return;
-  }
-
-  const playerIndex =
-    Number(answer) - 1;
-
-  if (
-    playerIndex < 0 ||
-    playerIndex >=
-      activePlayers.length
-  ) {
-    toast(
-      'Jogador inválido.'
-    );
-    return;
-  }
-
-  const player =
-    activePlayers[playerIndex];
-
-  const defaultAmount =
-    Number(
-      settings?.unit_fee ||
-      10
-    );
-
-  const amountAnswer =
-    prompt(
-      `Valor da cobrança para ${player.name}:`,
-      defaultAmount.toFixed(2)
-    );
-
-  if (amountAnswer === null) {
-    return;
-  }
-
-  const amount =
-    Number(
-      String(amountAnswer)
-        .replace(',', '.')
-    );
-
-  if (
-    !Number.isFinite(amount) ||
-    amount <= 0
-  ) {
-    toast(
-      'Informe um valor válido.'
-    );
-    return;
-  }
-
-  const result =
-    await SB
-      .from('unit_payments')
-      .upsert(
-        {
-          game_id:
-            payGameId,
-
-          player_id:
-            player.id,
-
-          amount,
-
-          paid:
-            false
-        },
-        {
-          onConflict:
-            'game_id,player_id'
-        }
-      );
-
-  if (result.error) {
-    toast(
-      'Erro ao criar cobrança individual: ' +
-      result.error.message
-    );
-    return;
-  }
-
-  const gp =
-    await SB
-      .from('game_players')
-      .upsert(
-        {
-          game_id:
-            payGameId,
-
-          player_id:
-            player.id,
-
-          present:
-            true,
-
-          payment_mode:
-            'individual'
-        },
-        {
-          onConflict:
-            'game_id,player_id'
-        }
-      );
-
-  if (gp.error) {
-    toast(
-      'Cobrança criada, mas não foi possível atualizar o jogo: ' +
-      gp.error.message
-    );
-    return;
-  }
-
-  await renderUnitPayments();
-
-  toast(
-    'Cobrança individual adicionada.'
+  const answer = prompt(
+    'Cobrança individual\n\nEscolha o jogador:\n\n' +
+    playerOptions +
+    '\n\nDigite o número:'
   );
+
+  if (answer === null) return;
+
+  const playerIndex = Number(answer) - 1;
+
+  if (playerIndex < 0 || playerIndex >= activePlayers.length) {
+    toast('Jogador inválido.');
+    return;
+  }
+
+  const player = activePlayers[playerIndex];
+  const defaultAmount = Number(settings?.unit_fee || 10);
+  const amountAnswer = prompt(
+    `Valor da cobrança para ${player.name}:`,
+    defaultAmount.toFixed(2)
+  );
+
+  if (amountAnswer === null) return;
+
+  const amount = Number(String(amountAnswer).replace(',', '.'));
+
+  if (!Number.isFinite(amount) || amount <= 0) {
+    toast('Informe um valor válido.');
+    return;
+  }
+
+  try {
+    const result = await SB.rpc('create_unit_charge', {
+      p_game: payGameId,
+      p_player: player.id,
+      p_amount: amount
+    });
+
+    if (result.error) throw result.error;
+
+    await renderUnitPayments();
+    toast('Cobrança individual adicionada.');
+  } catch (error) {
+    console.error('Erro ao criar cobrança individual:', error);
+    toast('Erro ao criar cobrança individual: ' + (error?.message || 'erro desconhecido'));
+  }
 }
 
 async function syncUnitCash(
@@ -3915,113 +3579,29 @@ async function toggleUnit(
   paid
 ) {
   if (!payGameId) {
-    toast(
-      'Selecione um jogo.'
-    );
-    return;
-  }
-
-  const unitResult =
-    await SB
-      .from('unit_payments')
-      .select('*')
-      .eq(
-        'game_id',
-        payGameId
-      )
-      .eq(
-        'player_id',
-        playerId
-      )
-      .maybeSingle();
-
-  if (unitResult.error) {
-    toast(
-      unitResult.error.message
-    );
-    return;
-  }
-
-  const unit =
-    unitResult.data;
-
-  if (!unit) {
-    toast(
-      'Cobrança individual não encontrada.'
-    );
-    return;
-  }
-
-  const newPaid =
-    !paid;
-
-  const updateResult =
-    await SB
-      .from('unit_payments')
-      .update({
-        paid:
-          newPaid
-      })
-      .eq(
-        'id',
-        unit.id
-      );
-
-  if (updateResult.error) {
-    toast(
-      updateResult.error.message
-    );
+    toast('Selecione um jogo.');
     return;
   }
 
   try {
-    const tag =
-      `unit_payment:${unit.id}`;
+    const result = await SB.rpc('set_unit_paid', {
+      p_game: payGameId,
+      p_player: playerId,
+      p_paid: !paid
+    });
 
-    if (newPaid) {
-      await syncUnitCash(
-        payGameId,
-        playerId,
-        Number(
-          unit.amount || 0
-        )
-      );
-    } else {
-      await SB
-        .from('cash_entries')
-        .delete()
-        .like(
-          'description',
-          `%${tag}`
-        );
-    }
-  } catch (e) {
-    // Reverte o status se o lançamento no caixa falhar.
-    await SB
-      .from('unit_payments')
-      .update({
-        paid:
-          paid
-      })
-      .eq(
-        'id',
-        unit.id
-      );
+    if (result.error) throw result.error;
 
+    await renderUnitPayments();
     toast(
-      'Não foi possível atualizar o Caixa: ' +
-      (e?.message || 'erro desconhecido')
+      !paid
+        ? 'Pagamento individual registrado e lançado no caixa.'
+        : 'Pagamento individual desmarcado.'
     );
-    return;
+  } catch (error) {
+    console.error('Erro ao atualizar pagamento individual:', error);
+    toast('Erro ao atualizar pagamento individual: ' + (error?.message || 'erro desconhecido'));
   }
-
-  toast(
-    newPaid
-      ? 'Pagamento individual registrado e lançado no caixa.'
-      : 'Pagamento individual desmarcado.'
-  );
-
-  await renderUnitPayments();
 }
 
 async function editUnitAmount(
@@ -4029,129 +3609,54 @@ async function editUnitAmount(
   value
 ) {
   if (!payGameId) {
-    toast(
-      'Selecione um jogo.'
-    );
+    toast('Selecione um jogo.');
     return;
   }
 
-  const amount =
-    Number(
-      String(value)
-        .replace(',', '.')
-    );
+  const amount = Number(String(value).replace(',', '.'));
 
-  if (
-    !Number.isFinite(amount) ||
-    amount < 0
-  ) {
-    toast(
-      'Valor inválido.'
-    );
+  if (!Number.isFinite(amount) || amount <= 0) {
+    toast('Valor inválido.');
     return;
   }
 
-  const result =
-    await SB
-      .from('unit_payments')
-      .update({
-        amount
-      })
-      .eq(
-        'game_id',
-        payGameId
-      )
-      .eq(
-        'player_id',
-        playerId
-      );
+  try {
+    const result = await SB.rpc('set_unit_amount', {
+      p_game: payGameId,
+      p_player: playerId,
+      p_amount: amount
+    });
 
-  if (result.error) {
-    toast(
-      result.error.message
-    );
-    return;
+    if (result.error) throw result.error;
+
+    await renderUnitPayments();
+    toast('Valor individual atualizado.');
+  } catch (error) {
+    console.error('Erro ao atualizar valor individual:', error);
+    toast('Erro ao atualizar valor individual: ' + (error?.message || 'erro desconhecido'));
   }
-
-  const paid =
-    (
-      await SB
-        .from('unit_payments')
-        .select('paid,id')
-        .eq(
-          'game_id',
-          payGameId
-        )
-        .eq(
-          'player_id',
-          playerId
-        )
-        .maybeSingle()
-    ).data;
-
-  if (paid?.paid) {
-    try {
-      await syncUnitCash(
-        payGameId,
-        playerId,
-        amount
-      );
-    } catch (e) {
-      toast(
-        'Valor alterado, mas não foi possível atualizar o Caixa: ' +
-        (e?.message || 'erro desconhecido')
-      );
-      return;
-    }
-  }
-
-  toast(
-    'Valor individual atualizado.'
-  );
-
-  await renderUnitPayments();
 }
 
 async function removeUnit(
   id
 ) {
-  if (
-    !confirm(
-      'Remover esta cobrança individual? Se estiver paga, o valor sai do caixa.'
-    )
-  ) {
+  if (!confirm('Remover esta cobrança individual? Se estiver paga, o valor sai do caixa.')) {
     return;
   }
 
-  await SB
-    .from('cash_entries')
-    .delete()
-    .like(
-      'description',
-      `%unit_payment:${id}`
-    );
+  try {
+    const result = await SB.rpc('remove_unit_charge', {
+      p_id: id
+    });
 
-  const result =
-    await SB
-      .from('unit_payments')
-      .delete()
-      .eq(
-        'id',
-        id
-      );
+    if (result.error) throw result.error;
 
-  if (result.error) {
-    toast(
-      result.error.message
-    );
-    return;
+    await renderUnitPayments();
+    toast('Cobrança individual removida.');
+  } catch (error) {
+    console.error('Erro ao remover cobrança individual:', error);
+    toast('Erro ao remover cobrança individual: ' + (error?.message || 'erro desconhecido'));
   }
-
-  await renderUnitPayments();
-
-  toast(
-    'Cobrança individual removida.'
-  );
 }
 
 /* =========================================================
