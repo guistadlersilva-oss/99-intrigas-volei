@@ -2601,13 +2601,20 @@ async function renderTeamsAdmin() {
     return;
   }
 
-  const ts = (
+  const teamsResult =
     await SB
       .from('teams')
       .select('id,team_no,total_skill')
       .eq('game_id', currentGame.id)
-      .order('created_at')
-  ).data || [];
+      .order('team_no');
+
+  if (teamsResult.error) {
+    console.error('Erro ao carregar times:', teamsResult.error);
+    toast('Erro ao carregar times: ' + teamsResult.error.message);
+    return;
+  }
+
+  const ts = teamsResult.data || [];
 
   if (!ts.length) {
     $('teamsAdmin').innerHTML = `
