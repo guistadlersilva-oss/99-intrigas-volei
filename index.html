@@ -266,6 +266,22 @@ header{
   display:block;
 }
 
+/* Arrastar jogadores entre times */
+.team .person[draggable="true"]{
+  cursor:grab;
+  user-select:none;
+}
+.team .person[draggable="true"]:active{
+  cursor:grabbing;
+}
+.team.drag-over{
+  outline:2px dashed var(--p);
+  outline-offset:4px;
+}
+.person.dragging{
+  opacity:.5;
+}
+
 table{
   width:100%;
   border-collapse:collapse;
@@ -319,29 +335,6 @@ th,td{
 .person span{
   color:var(--muted);
   font-size:12px;
-}
-
-.person[draggable="true"]{
-  cursor:grab;
-  user-select:none;
-}
-
-.person[draggable="true"]:active{
-  cursor:grabbing;
-}
-
-.person.dragging{
-  opacity:.45;
-}
-
-.team.drag-over{
-  outline:2px dashed var(--accent);
-  outline-offset:3px;
-}
-
-.teamDragHint{
-  margin:0 0 12px;
-  font-size:13px;
 }
 
 .mediaRow{
@@ -1150,8 +1143,6 @@ th,td{
 
       </div>
 
-      <p class="muted teamDragHint">↔️ Arraste um jogador de um time para o outro para trocar de equipe.</p>
-
 
       <div
         id="teamsAdmin"
@@ -1281,7 +1272,12 @@ th,td{
 
       </div>
 
+
+    
+
     <!-- ===================================================== -->
+    
+</section>
     <!-- CAIXA -->
     <!-- ===================================================== -->
     <section id="a_cash" class="page">
@@ -1765,7 +1761,7 @@ th,td{
             >
 
           </div>
-<div class="field">
+          <div class="field">
 
             <label>
               Instagram
@@ -1918,7 +1914,7 @@ th,td{
 ></div>
 
 
-<script src="app.js?v=20261005-dragdrop-fix2"></script>
+<script src="app.js?v=20261005-fix2"></script>
 
 </body>
 </html>
