@@ -6193,6 +6193,59 @@ SB.auth.onAuthStateChange(
 
 /* =========================================================
    COMPATIBILIDADE COM BOTÕES DO INDEX
+   Mantém os nomes usados pelo index.html.
+========================================================= */
+
+function goAdmin() {
+  goAdminLogin();
+}
+
+function addPlayer() {
+  const url = registerUrl();
+
+  if (!settings?.invite_token) {
+    toast('Link de cadastro ainda não está disponível.');
+    return;
+  }
+
+  window.open(url, '_blank', 'noopener');
+}
+
+async function copyMyAccess() {
+  const value =
+    $('myAccessLink')
+      ?.value
+      ?.trim();
+
+  if (!value) {
+    toast('O link de acesso ainda não foi gerado.');
+    return;
+  }
+
+  try {
+    await navigator.clipboard.writeText(value);
+    toast('Link copiado.');
+  } catch (e) {
+    console.error(e);
+    toast('Não foi possível copiar automaticamente.');
+  }
+}
+
+function newGameForm() {
+  newGame();
+}
+
+function newVarForm() {
+  editingVarId = null;
+  $('varForm')?.reset();
+}
+
+function changePayGame(value) {
+  return changePaymentGame(value);
+}
+
+/* =========================================================
+   COMPATIBILIDADE COM BOTÕES DO INDEX
 ========================================================= */
 
 function openAdmin() {
