@@ -1,3 +1,4 @@
+/* VOLEI BUILD 2026-10-05 — TEAM SCHEMA: team_no + total_skill */
 /* VERSÃO CORRIGIDA A PARTIR DO APP ORIGINAL DE 6.166 LINHAS */
 const SB = supabase.createClient(
   VOLEI_CONFIG.supabaseUrl,
