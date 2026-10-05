@@ -1,4 +1,3 @@
-window.goAdmin = function goAdmin() { window.location.href = window.location.pathname + '?admin'; };
 /* VOLEI BUILD 2026-10-05 — TEAM SCHEMA: team_no + total_skill */
 /* VERSÃO CORRIGIDA A PARTIR DO APP ORIGINAL DE 6.166 LINHAS */
 const SB = supabase.createClient(
@@ -280,28 +279,6 @@ async function init() {
     return;
   }
 
-  /*
-    Rota administrativa: /?admin
-    Deve abrir a tela de login quando não houver sessão.
-    Sem este bloco, o app caía novamente em 'landing'.
-  */
-  if (query.has('admin')) {
-    const adminSession =
-      await SB.auth.getSession();
-
-    session =
-      adminSession.data?.session ||
-      null;
-
-    if (session && await checkAdmin()) {
-      await enterAdmin();
-    } else {
-      setMode('adminLogin');
-    }
-
-    return;
-  }
-
   const result =
     await SB.auth.getSession();
 
@@ -537,22 +514,9 @@ async function loadAdmin() {
 
   if (s.error) {
     toast(
-      'Erro ao carregar configurações: ' + s.error.message
+      s.error.message
     );
-    return;
-  }
 
-  if (p.error) {
-    toast(
-      'Erro ao carregar jogadores: ' + p.error.message
-    );
-    return;
-  }
-
-  if (g.error) {
-    toast(
-      'Erro ao carregar jogos: ' + g.error.message
-    );
     return;
   }
 
@@ -830,7 +794,7 @@ async function getCashSummary() {
       SB
         .from('cash_entries')
         .select(
-          'entry_type,amount'
+          'type,amount'
         )
     ]);
 
@@ -2259,30 +2223,279 @@ async function saveGamePlayer(
 
 async function drawTeams() {
   if (!currentGame) {
-    toast('Nenhum jogo selecionado.');
+    toast(
+      'Nenhum jogo selecionado.'
+    );
+
     return;
   }
 
-  try {
-    const result = await SB.rpc('draw_teams_balanced', {
-      p_game: currentGame.id
-    });
+  const gp =
+    (
+      await SB
+        .from(
+          'game_players'
+        )
+        .select(
+          'player_id'
+        )
+        .eq(
+          'game_id',
+          currentGame.id
+        )
+        .eq(
+          'present',
+          true
+        )
+    ).data || [];
 
-    if (result.error) {
-      console.error('Erro ao sortear times:', result.error);
-      toast('Erro ao sortear times: ' + result.error.message);
+  const ps =
+    gp
+      .map(x =>
+        players.find(
+          p =>
+            p.id ===
+            x.player_id
+        )
+      )
+      .filter(Boolean)
+      .sort(
+        (a, b) =>
+          Number(
+            b.skill_score
+          ) -
+          Number(
+            a.skill_score
+          )
+      );
+
+  if (!ps.length) {
+    toast(
+      'Nenhum jogador confirmado para este jogo.'
+    );
+
+    return;
+  }
+
+  const requestedTeams =
+    Number(
+      currentGame.teams_count
+    ) || 2;
+
+  const teamCount =
+    Math.min(
+      Math.max(
+        1,
+        requestedTeams
+      ),
+      ps.length
+    );
+
+  const baseSize =
+    Math.floor(
+      ps.length /
+        teamCount
+    );
+
+  const remainder =
+    ps.length %
+    teamCount;
+
+  const capacities =
+    Array.from(
+      {
+        length:
+          teamCount
+      },
+      (_, i) =>
+        baseSize +
+        (
+          i <
+          remainder
+            ? 1
+            : 0
+        )
+    );
+
+  const oldTeams =
+    (
+      await SB
+        .from('teams')
+        .select('id')
+        .eq(
+          'game_id',
+          currentGame.id
+        )
+    ).data || [];
+
+  if (oldTeams.length) {
+    const oldIds =
+      oldTeams.map(
+        x => x.id
+      );
+
+    await SB
+      .from(
+        'team_members'
+      )
+      .delete()
+      .in(
+        'team_id',
+        oldIds
+      );
+
+    await SB
+      .from('teams')
+      .delete()
+      .eq(
+        'game_id',
+        currentGame.id
+      );
+  }
+
+  const teams =
+    Array.from(
+      {
+        length:
+          teamCount
+      },
+      () => []
+    );
+
+  ps.forEach(
+    player => {
+      const available =
+        [
+          ...Array(
+            teamCount
+          ).keys()
+        ].filter(
+          i =>
+            teams[i]
+              .length <
+            capacities[i]
+        );
+
+      available.sort(
+        (a, b) => {
+          const skillDiff =
+            sum(
+              teams[a]
+            ) -
+            sum(
+              teams[b]
+            );
+
+          if (
+            skillDiff !==
+            0
+          ) {
+            return skillDiff;
+          }
+
+          const sizeDiff =
+            teams[a]
+              .length -
+            teams[b]
+              .length;
+
+          if (
+            sizeDiff !==
+            0
+          ) {
+            return sizeDiff;
+          }
+
+          return a - b;
+        }
+      );
+
+      teams[
+        available[0]
+      ].push(player);
+    }
+  );
+
+  for (
+    let i = 0;
+    i < teams.length;
+    i++
+  ) {
+    const teamPlayers =
+      teams[i];
+
+    const teamName =
+      `Time ${i + 1}`;
+
+    const result =
+      await SB
+        .from('teams')
+        .insert({
+          game_id:
+            currentGame.id,
+
+          team_no:
+            i + 1,
+
+          total_skill:
+            sum(
+              teamPlayers
+            )
+        })
+        .select()
+        .single();
+
+    if (
+      result.error
+    ) {
+      toast(
+        result.error.message
+      );
+
       return;
     }
 
-    toast(
-      `Times sorteados: ${result.data?.players || 0} jogadores em ${result.data?.teams || 0} times.`
-    );
+    const team =
+      result.data;
 
-    await renderGames();
-  } catch (error) {
-    console.error('Erro ao sortear times:', error);
-    toast('Erro ao sortear times: ' + (error?.message || 'erro desconhecido'));
+    if (
+      teamPlayers.length
+    ) {
+      const members =
+        teamPlayers.map(
+          player => ({
+            team_id:
+              team.id,
+
+            player_id:
+              player.id
+          })
+        );
+
+      const mr =
+        await SB
+          .from(
+            'team_members'
+          )
+          .insert(
+            members
+          );
+
+      if (mr.error) {
+        toast(
+          mr.error.message
+        );
+
+        return;
+      }
+    }
   }
+
+  toast(
+    `Times sorteados! ${ps.length} jogadores em ${teamCount} times.`
+  );
+
+  await renderGames();
 }
 
 
@@ -2290,270 +2503,181 @@ async function drawTeams() {
    TIMES
 ========================================================= */
 
+let draggedTeamPlayer = null;
+
+function startTeamDrag(event, playerId, fromTeamId) {
+  draggedTeamPlayer = { playerId, fromTeamId };
+  try {
+    event.dataTransfer.effectAllowed = 'move';
+    event.dataTransfer.setData(
+      'text/plain',
+      JSON.stringify(draggedTeamPlayer)
+    );
+  } catch (error) {
+    console.warn('Drag and drop não disponível:', error);
+  }
+
+  event.currentTarget.classList.add('dragging');
+}
+
+function endTeamDrag(event) {
+  event.currentTarget?.classList.remove('dragging');
+  draggedTeamPlayer = null;
+  document.querySelectorAll('.team.drag-over').forEach(team => {
+    team.classList.remove('drag-over');
+  });
+}
+
+function allowTeamDrop(event, targetTeamId) {
+  event.preventDefault();
+
+  const payload = draggedTeamPlayer;
+  if (!payload || payload.fromTeamId === targetTeamId) {
+    return;
+  }
+
+  try {
+    event.dataTransfer.dropEffect = 'move';
+  } catch (error) {
+    // Alguns navegadores podem não expor dataTransfer no evento.
+  }
+
+  event.currentTarget.classList.add('drag-over');
+}
+
+function leaveTeamDrop(event) {
+  event.currentTarget.classList.remove('drag-over');
+}
+
+async function dropTeam(event, targetTeamId) {
+  event.preventDefault();
+  event.currentTarget.classList.remove('drag-over');
+
+  let payload = draggedTeamPlayer;
+
+  if (!payload) {
+    try {
+      payload = JSON.parse(event.dataTransfer.getData('text/plain') || 'null');
+    } catch (error) {
+      payload = null;
+    }
+  }
+
+  draggedTeamPlayer = null;
+
+  if (!currentGame || !payload?.playerId || !payload?.fromTeamId) {
+    return;
+  }
+
+  if (payload.fromTeamId === targetTeamId) {
+    return;
+  }
+
+  const player = players.find(p => p.id === payload.playerId);
+  if (!player) {
+    toast('Jogador não encontrado.');
+    return;
+  }
+
+  const result = await SB
+    .from('team_members')
+    .update({ team_id: targetTeamId })
+    .eq('team_id', payload.fromTeamId)
+    .eq('player_id', payload.playerId);
+
+  if (result.error) {
+    console.error('Erro ao mover jogador:', result.error);
+    toast('Não foi possível mover o jogador: ' + result.error.message);
+    return;
+  }
+
+  await recalculateTeamScores();
+  toast(`${player.name} foi movido para o outro time.`);
+  await renderGames();
+}
+
 async function renderTeamsAdmin() {
   if (!currentGame) {
     return;
   }
 
-  const teamsResult =
+  const ts = (
     await SB
       .from('teams')
-      .select(
-        'id,team_no,total_skill'
-      )
-      .eq(
-        'game_id',
-        currentGame.id
-      )
-      .order(
-        'team_no'
-      );
-
-  if (teamsResult.error) {
-    toast(
-      'Erro ao carregar times: ' +
-      teamsResult.error.message
-    );
-    return;
-  }
-
-  const ts = teamsResult.data || [];
+      .select('id,team_no,total_skill')
+      .eq('game_id', currentGame.id)
+      .order('created_at')
+  ).data || [];
 
   if (!ts.length) {
-    $('teamsAdmin').innerHTML =
-      `
-        <div class="notice">
-          Ainda não há times sorteados.
-        </div>
-      `;
-
+    $('teamsAdmin').innerHTML = `
+      <div class="notice">
+        Ainda não há times sorteados.
+      </div>
+    `;
     return;
   }
 
-  const members =
-    (
-      await SB
-        .from(
-          'team_members'
-        )
-        .select(
-          'team_id,player_id'
-        )
-        .in(
-          'team_id',
-          ts.map(
-            t => t.id
-          )
-        )
-    ).data || [];
-
-  $('teamsAdmin').innerHTML =
-    ts
-      .map(t => {
-        const teamMembers =
-          members
-            .filter(
-              m =>
-                m.team_id ===
-                t.id
-            )
-            .map(
-              m =>
-                players.find(
-                  p =>
-                    p.id ===
-                    m.player_id
-                )
-            )
-            .filter(Boolean);
-
-        return `
-          <div class="team">
-
-            <h3>
-              Time ${
-                t.team_no
-              }
-
-              <small>
-                ${
-                  teamMembers.length
-                } jogadores
-                ·
-                ${sum(
-                  teamMembers
-                )} pontos
-              </small>
-            </h3>
-
-            ${
-              teamMembers.length
-                ? teamMembers
-                    .map(
-                      p => `
-                        <div class="person">
-
-                          <span>
-                            ${esc(
-                              p.name
-                            )}
-
-                            <small>
-                              ${
-                                SKILL_LABEL[
-                                  p.skill_level
-                                ] || ''
-                              }
-                            </small>
-                          </span>
-
-                          <button
-                            onclick="movePlayerFromTeam(
-                              '${p.id}',
-                              '${t.id}'
-                            )"
-                          >
-                            ↔️ Mover
-                          </button>
-
-                        </div>
-                      `
-                    )
-                    .join('')
-                : `
-                    <div class="muted">
-                      Nenhum jogador neste time.
-                    </div>
-                  `
-            }
-
-          </div>
-        `;
-      })
-      .join('');
-}
-
-
-async function movePlayerFromTeam(
-  playerId,
-  currentTeamId
-) {
-  if (!currentGame) {
-    return;
-  }
-
-  const teams =
-    (
-      await SB
-        .from('teams')
-        .select(
-          'id,team_no'
-        )
-        .eq(
-          'game_id',
-          currentGame.id
-        )
-        .order(
-          'team_no'
-        )
-    ).data || [];
-
-  const available =
-    teams.filter(
-      t =>
-        t.id !==
-        currentTeamId
-    );
-
-  if (!available.length) {
-    toast(
-      'Não existem outros times.'
-    );
-
-    return;
-  }
-
-  const player =
-    players.find(
-      p =>
-        p.id ===
-        playerId
-    );
-
-  if (!player) {
-    return;
-  }
-
-  const options =
-    available
-      .map(
-        (t, i) =>
-          `${i + 1} - Time ${t.team_no}`
-      )
-      .join('\n');
-
-  const answer =
-    prompt(
-      `Mover ${player.name} para:\n\n${options}\n\nDigite o número:`
-    );
-
-  if (answer === null) {
-    return;
-  }
-
-  const index =
-    Number(answer) - 1;
-
-  if (
-    index < 0 ||
-    index >=
-      available.length
-  ) {
-    toast(
-      'Time inválido.'
-    );
-
-    return;
-  }
-
-  const target =
-    available[index];
-
-  const r =
+  const members = (
     await SB
-      .from(
-        'team_members'
-      )
-      .update({
-        team_id:
-          target.id
-      })
-      .eq(
-        'team_id',
-        currentTeamId
-      )
-      .eq(
-        'player_id',
-        playerId
-      );
+      .from('team_members')
+      .select('team_id,player_id')
+      .in('team_id', ts.map(t => t.id))
+  ).data || [];
 
-  if (r.error) {
-    toast(
-      r.error.message
-    );
+  $('teamsAdmin').innerHTML = ts.map(t => {
+    const teamMembers = members
+      .filter(m => m.team_id === t.id)
+      .map(m => players.find(p => p.id === m.player_id))
+      .filter(Boolean);
 
-    return;
-  }
+    return `
+      <div
+        class="team"
+        ondragover="allowTeamDrop(event, '${t.id}')"
+        ondragleave="leaveTeamDrop(event)"
+        ondrop="dropTeam(event, '${t.id}')"
+      >
 
-  await recalculateTeamScores();
+        <h3>
+          Time ${t.team_no}
+          <small>
+            ${teamMembers.length} jogadores
+            ·
+            ${sum(teamMembers)} pontos
+          </small>
+        </h3>
 
-  toast(
-    `${player.name} foi movido.`
-  );
+        ${
+          teamMembers.length
+            ? teamMembers.map(p => `
+                <div
+                  class="person"
+                  draggable="true"
+                  title="Arraste para outro time"
+                  ondragstart="startTeamDrag(event, '${p.id}', '${t.id}')"
+                  ondragend="endTeamDrag(event)"
+                >
+                  <span>
+                    ${esc(p.name)}
+                    <small>
+                      ${SKILL_LABEL[p.skill_level] || ''}
+                    </small>
+                  </span>
+                  <span aria-hidden="true" title="Arraste para mover">↔️</span>
+                </div>
+              `).join('')
+            : `
+                <div class="muted">
+                  Arraste um jogador para este time.
+                </div>
+              `
+        }
 
-  await renderGames();
+      </div>
+    `;
+  }).join('');
 }
-
 
 async function recalculateTeamScores() {
   if (!currentGame) {
@@ -2625,30 +2749,21 @@ async function sendTeamsWhatsApp() {
     return;
   }
 
-  const teamsResult =
-    await SB
-      .from('teams')
-      .select(
-        'id,team_no'
-      )
-      .eq(
-        'game_id',
-        currentGame.id
-      )
-      .order(
-        'team_no'
-      );
-
-  if (teamsResult.error) {
-    toast(
-      'Erro ao carregar times: ' +
-      teamsResult.error.message
-    );
-    return;
-  }
-
   const ts =
-    teamsResult.data || [];
+    (
+      await SB
+        .from('teams')
+        .select(
+          'id,team_no'
+        )
+        .eq(
+          'game_id',
+          currentGame.id
+        )
+        .order(
+          'created_at'
+        )
+    ).data || [];
 
   const members =
     (
@@ -3270,393 +3385,33 @@ async function toggleMonthly(
 
 
 /* =====================================================
-   PAGAMENTOS INDIVIDUAIS
+   FUNÇÕES LEGADAS DE PAGAMENTO INDIVIDUAL
+   NÃO SÃO MAIS USADAS PELA INTERFACE.
+   Os registros antigos permanecem no banco.
 ===================================================== */
 
-async function renderUnitPayments() {
-  const select = $('payGameSelect');
-  const table = $('unitTable');
-
-  if (!select || !table) {
-    return;
-  }
-
-  if (
-    !payGameId ||
-    !games.some(
-      g => g.id === payGameId
-    )
-  ) {
-    payGameId =
-      currentGame?.id ||
-      games[0]?.id ||
-      null;
-  }
-
-  select.innerHTML =
-    games
-      .map(
-        g => `
-          <option
-            value="${g.id}"
-            ${
-              g.id === payGameId
-                ? 'selected'
-                : ''
-            }
-          >
-            ${dateBR(g.game_date)}
-          </option>
-        `
-      )
-      .join('') ||
-    '<option value="">Nenhum jogo cadastrado</option>';
-
-  if (!payGameId) {
-    table.innerHTML = `
-      <tr>
-        <td colspan="4">
-          Nenhum jogo cadastrado.
-        </td>
-      </tr>
-    `;
-    return;
-  }
-
-  const result =
-    await SB
-      .from('unit_payments')
-      .select('*')
-      .eq(
-        'game_id',
-        payGameId
-      );
-
-  if (result.error) {
-    toast(
-      'Erro ao carregar pagamentos individuais: ' +
-      result.error.message
-    );
-    return;
-  }
-
-  const rows =
-    result.data || [];
-
-  table.innerHTML =
-    rows
-      .map(
-        row => {
-          const player =
-            players.find(
-              p =>
-                p.id ===
-                row.player_id
-            );
-
-          return `
-            <tr>
-              <td>
-                ${esc(
-                  player?.name ||
-                  'Jogador removido'
-                )}
-              </td>
-
-              <td>
-                <input
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  value="${Number(
-                    row.amount || 0
-                  ).toFixed(2)}"
-                  style="max-width:110px"
-                  onchange="editUnitAmount('${row.player_id}',this.value)"
-                >
-              </td>
-
-              <td>
-                <span
-                  class="badge ${
-                    row.paid
-                      ? 'paid'
-                      : 'pending'
-                  }"
-                >
-                  ${
-                    row.paid
-                      ? 'Pago'
-                      : 'Pendente'
-                  }
-                </span>
-              </td>
-
-              <td>
-                <div class="actions">
-                  <button
-                    class="btnSmall"
-                    onclick="toggleUnit('${row.player_id}',${!!row.paid})"
-                  >
-                    ${
-                      row.paid
-                        ? 'Desmarcar'
-                        : 'Marcar pago'
-                    }
-                  </button>
-
-                  <button
-                    class="btnSmall btnDanger"
-                    onclick="removeUnit('${row.id}')"
-                  >
-                    🗑️
-                  </button>
-                </div>
-              </td>
-            </tr>
-          `;
-        }
-      )
-      .join('') ||
-    `
-      <tr>
-        <td colspan="4">
-          Nenhuma cobrança individual neste jogo.
-        </td>
-      </tr>
-    `;
-}
-
-async function changePayGame(value) {
-  payGameId =
-    value ||
-    null;
-
-  await renderUnitPayments();
+async function editUnitAmount() {
+  toast(
+    'Pagamentos individuais não são mais usados. Registre a movimentação no Caixa.'
+  );
 }
 
 async function addUnitCharge() {
-  if (!games.length) {
-    toast('Cadastre um jogo primeiro.');
-    return;
-  }
-
-  if (!payGameId || !games.some(g => g.id === payGameId)) {
-    payGameId = currentGame?.id || games[0]?.id || null;
-  }
-
-  const activePlayers = players.filter(p => p.active);
-
-  if (!activePlayers.length) {
-    toast('Nenhum jogador ativo cadastrado.');
-    return;
-  }
-
-  const playerOptions = activePlayers
-    .map((p, i) => `${i + 1} - ${p.name}`)
-    .join('\n');
-
-  const answer = prompt(
-    'Cobrança individual\n\nEscolha o jogador:\n\n' +
-    playerOptions +
-    '\n\nDigite o número:'
+  toast(
+    'Pagamentos individuais não são mais usados. Registre a movimentação no Caixa.'
   );
+}
 
-  if (answer === null) return;
-
-  const playerIndex = Number(answer) - 1;
-
-  if (playerIndex < 0 || playerIndex >= activePlayers.length) {
-    toast('Jogador inválido.');
-    return;
-  }
-
-  const player = activePlayers[playerIndex];
-  const defaultAmount = Number(settings?.unit_fee || 10);
-  const amountAnswer = prompt(
-    `Valor da cobrança para ${player.name}:`,
-    defaultAmount.toFixed(2)
+async function toggleUnit() {
+  toast(
+    'Pagamentos individuais não são mais usados. Registre a movimentação no Caixa.'
   );
-
-  if (amountAnswer === null) return;
-
-  const amount = Number(String(amountAnswer).replace(',', '.'));
-
-  if (!Number.isFinite(amount) || amount <= 0) {
-    toast('Informe um valor válido.');
-    return;
-  }
-
-  try {
-    const result = await SB.rpc('create_unit_charge', {
-      p_game: payGameId,
-      p_player: player.id,
-      p_amount: amount
-    });
-
-    if (result.error) throw result.error;
-
-    await renderUnitPayments();
-    toast('Cobrança individual adicionada.');
-  } catch (error) {
-    console.error('Erro ao criar cobrança individual:', error);
-    toast('Erro ao criar cobrança individual: ' + (error?.message || 'erro desconhecido'));
-  }
 }
 
-async function syncUnitCash(
-  gameId,
-  playerId,
-  amount
-) {
-  const unit =
-    (
-      await SB
-        .from('unit_payments')
-        .select('id')
-        .eq(
-          'game_id',
-          gameId
-        )
-        .eq(
-          'player_id',
-          playerId
-        )
-        .maybeSingle()
-    ).data;
-
-  if (!unit) {
-    return;
-  }
-
-  const player =
-    players.find(
-      p =>
-        p.id ===
-        playerId
-    );
-
-  const tag =
-    `unit_payment:${unit.id}`;
-
-  await SB
-    .from('cash_entries')
-    .delete()
-    .like(
-      'description',
-      `%${tag}`
-    );
-
-  const result =
-    await SB
-      .from('cash_entries')
-      .insert({
-        entry_date:
-          todayKey(),
-
-        entry_type:
-          'in',
-
-        category:
-          'Individual',
-
-        description:
-          `Pagamento individual | ${
-            player?.name ||
-            'Jogador'
-          } | ${tag}`,
-
-        amount
-      });
-
-  if (result.error) {
-    throw result.error;
-  }
-}
-
-async function toggleUnit(
-  playerId,
-  paid
-) {
-  if (!payGameId) {
-    toast('Selecione um jogo.');
-    return;
-  }
-
-  try {
-    const result = await SB.rpc('set_unit_paid', {
-      p_game: payGameId,
-      p_player: playerId,
-      p_paid: !paid
-    });
-
-    if (result.error) throw result.error;
-
-    await renderUnitPayments();
-    toast(
-      !paid
-        ? 'Pagamento individual registrado e lançado no caixa.'
-        : 'Pagamento individual desmarcado.'
-    );
-  } catch (error) {
-    console.error('Erro ao atualizar pagamento individual:', error);
-    toast('Erro ao atualizar pagamento individual: ' + (error?.message || 'erro desconhecido'));
-  }
-}
-
-async function editUnitAmount(
-  playerId,
-  value
-) {
-  if (!payGameId) {
-    toast('Selecione um jogo.');
-    return;
-  }
-
-  const amount = Number(String(value).replace(',', '.'));
-
-  if (!Number.isFinite(amount) || amount <= 0) {
-    toast('Valor inválido.');
-    return;
-  }
-
-  try {
-    const result = await SB.rpc('set_unit_amount', {
-      p_game: payGameId,
-      p_player: playerId,
-      p_amount: amount
-    });
-
-    if (result.error) throw result.error;
-
-    await renderUnitPayments();
-    toast('Valor individual atualizado.');
-  } catch (error) {
-    console.error('Erro ao atualizar valor individual:', error);
-    toast('Erro ao atualizar valor individual: ' + (error?.message || 'erro desconhecido'));
-  }
-}
-
-async function removeUnit(
-  id
-) {
-  if (!confirm('Remover esta cobrança individual? Se estiver paga, o valor sai do caixa.')) {
-    return;
-  }
-
-  try {
-    const result = await SB.rpc('remove_unit_charge', {
-      p_id: id
-    });
-
-    if (result.error) throw result.error;
-
-    await renderUnitPayments();
-    toast('Cobrança individual removida.');
-  } catch (error) {
-    console.error('Erro ao remover cobrança individual:', error);
-    toast('Erro ao remover cobrança individual: ' + (error?.message || 'erro desconhecido'));
-  }
+async function removeUnit() {
+  toast(
+    'Pagamentos individuais não são mais usados. Registre a movimentação no Caixa.'
+  );
 }
 
 /* =========================================================
@@ -3779,36 +3534,27 @@ async function addHistoricalPayment() {
     adicionamos a entrada ao caixa.
   */
   if (!alreadyInCash) {
-    const cashResult =
-      await SB
-        .from(
-          'cash_entries'
-        )
-        .insert({
-          entry_date:
-            paymentDate,
+    await SB
+      .from(
+        'cash_entries'
+      )
+      .insert({
+        entry_date:
+          paymentDate,
 
-          entry_type:
-            'in',
+        type:
+          'entrada',
 
-          category:
-            type === 'mensal'
-              ? 'Mensalidade'
-              : 'Pagamento individual',
+        category:
+          type === 'mensal'
+            ? 'Mensalidade'
+            : 'Pagamento individual',
 
-          description:
-            `Histórico | ${playerName} | pagamento:${r.data.id}`,
+        description:
+          `Histórico | ${playerName} | pagamento:${r.data.id}`,
 
-          amount
-        });
-
-    if (cashResult.error) {
-      toast(
-        'Histórico salvo, mas não foi possível lançar no Caixa: ' +
-        cashResult.error.message
-      );
-      return;
-    }
+        amount
+      });
   }
 
   if ($('historyName')) {
@@ -4608,10 +4354,8 @@ async function addCashEntry(
           date,
 
         entry_type:
-          type === 'entrada'
-            ? 'in'
-            : 'out',
 
+          type,
         category:
           category,
 
@@ -4657,7 +4401,6 @@ async function addCashEntry(
 
   toggleCashNameField();
 
-  await renderCash();
 
   toast(
     type ===
@@ -6376,7 +6119,6 @@ SB.auth.onAuthStateChange(
 function goAdmin() {
   goAdminLogin();
 }
-window.goAdmin = goAdmin;
 
 function addPlayer() {
   const url = registerUrl();
@@ -6448,23 +6190,6 @@ function logoutPlayer() {
 /* =========================================================
    INICIALIZAÇÃO
 ========================================================= */
-
-
-/* =========================================================
-   EXPOSIÇÃO GLOBAL DOS PRINCIPAIS HANDLERS
-========================================================= */
-window.goAdmin = goAdmin;
-window.drawTeams = drawTeams;
-window.sendTeamsWhatsApp = sendTeamsWhatsApp;
-window.addCashEntry = addCashEntry;
-window.refreshPayments = refreshPayments;
-window.addMonthlyPayment = addMonthlyPayment;
-window.addUnitCharge = addUnitCharge;
-window.changePayGame = changePayGame;
-window.toggleUnit = toggleUnit;
-window.editUnitAmount = editUnitAmount;
-window.removeUnit = removeUnit;
-
 
 window.addEventListener(
   'load',
