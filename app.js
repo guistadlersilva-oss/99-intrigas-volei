@@ -6167,22 +6167,22 @@ async function saveMyPlayer(e) {
       : null;
 
   if (player) {
-    const r =
-      await SB
-        .from('players')
-        .update({
-          name,
+ const r =
+  await SB
+    .from('players')
+    .update({
+      name,
 
-          skill,
+      skill_level: skill,
 
-          skill_score:
-            SKILLS[
-              skill
-            ],
+      skill_score:
+        SKILLS[
+          skill
+        ],
 
-          active:
-            true
-        })
+      active:
+        true
+    })
         .eq(
           'id',
           player.id
@@ -6202,21 +6202,21 @@ async function saveMyPlayer(e) {
     );
   } else {
     const r =
-      await SB
-        .from('players')
-        .insert({
-          name,
+  await SB
+    .from('players')
+    .insert({
+      name,
 
-          skill,
+      skill_level: skill,
 
-          skill_score:
-            SKILLS[
-              skill
-            ],
+      skill_score:
+        SKILLS[
+          skill
+        ],
 
-          active:
-            true
-        })
+      active:
+        true
+    })
         .select()
         .single();
 
